@@ -5,7 +5,7 @@
 It upgrades your note-taking experience by connecting Obsidian to a local **LightRAG (Graph RAG)** server. Instead of simple vector search, Neural Composer retrieves information based on **relationships** and deep context from your knowledge graph.
 
 > **Forked from:** [Smart Composer](https://github.com/glowingjade/obsidian-smart-composer)
-> **Developed by:** Oscar Campo & Cora (AI Co-Pilot)
+> **Developed by:** Oscar Campo & Cora (AI)
 
 ## ✨ Features
 
