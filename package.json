@@ -1,6 +1,6 @@
 {
-  "name": "obsidian-smart-composer",
-  "version": "1.2.5",
+  "name": "obsidian-neural-composer",
+  "version": "1.0.0",
   "description": "This is a sample plugin for Obsidian (https://obsidian.md)",
   "main": "main.js",
   "scripts": {
@@ -14,7 +14,7 @@
     "migrate:compile": "node compile-migration.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "Oscar Campo",
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.13",
