@@ -1,11 +1,11 @@
 {
-  "id": "smart-composer",
-  "name": "Smart Composer",
-  "version": "1.2.5",
-  "minAppVersion": "0.15.0",
-  "description": "AI chat with note context, smart writing assistance, and one-click edits for your vault.",
-  "author": "Heesu Suh",
-  "authorUrl": "https://github.com/glowingjade",
-  "fundingUrl": "https://buymeacoffee.com/kevin.on",
-  "isDesktopOnly": false
+  "id": "obsidian-neural-composer",
+  "name": "Neural Composer",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "The neural evolution of Smart Composer. Integrates Obsidian with a local LightRAG server to create a Graph-based Memory system. Features deep context retrieval, knowledge graph connections, and enhanced chat capabilities. A specialized fork of Smart Composer by glowingjade.",
+  "author": "Oscar Campo (w/ Cora AI)",
+  "authorUrl": "https://github.com/oscampo",
+  "fundingUrl": "https://github.com/sponsors/glowingjade",
+  "isDesktopOnly": true
 }
