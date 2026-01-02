@@ -24,9 +24,8 @@ const ragOptionsSchema = z.object({
 })
 
 /**
- * Settings
+ * Settings Schema
  */
-
 export const smartComposerSettingsSchema = z.object({
   // Version
   version: z.literal(SETTINGS_SCHEMA_VERSION).catch(SETTINGS_SCHEMA_VERSION),
@@ -44,14 +43,14 @@ export const smartComposerSettingsSchema = z.object({
     .catch(
       DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_CHAT_MODEL_ID)?.id ??
         DEFAULT_CHAT_MODELS[0].id,
-    ), // model for default chat feature
+    ), 
   applyModelId: z
     .string()
     .catch(
       DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_APPLY_MODEL_ID)?.id ??
         DEFAULT_CHAT_MODELS[0].id,
-    ), // model for apply feature
-  embeddingModelId: z.string().catch(DEFAULT_EMBEDDING_MODELS[0].id), // model for embedding
+    ),
+  embeddingModelId: z.string().catch(DEFAULT_EMBEDDING_MODELS[0].id), 
 
   // System Prompt
   systemPrompt: z.string().catch(''),
@@ -87,8 +86,55 @@ export const smartComposerSettingsSchema = z.object({
       enableTools: true,
       maxAutoIterations: 1,
     }),
+
+  // --- CORA MOD: NUEVAS OPCIONES PARA LIGHTRAG ---
+  enableAutoStartServer: z.boolean().catch(false),
+  lightRagCommand: z.string().catch('lightrag-server'),
+  lightRagWorkDir: z.string().catch(''),
+  // ----------------------------------------------
 })
+
 export type SmartComposerSettings = z.infer<typeof smartComposerSettingsSchema>
+
+/**
+ * Default Settings Constant (Fully Populated to avoid TS2740)
+ */
+export const DEFAULT_SETTINGS: SmartComposerSettings = {
+  version: SETTINGS_SCHEMA_VERSION,
+  providers: [...DEFAULT_PROVIDERS],
+  chatModels: [...DEFAULT_CHAT_MODELS],
+  embeddingModels: [...DEFAULT_EMBEDDING_MODELS],
+  
+  chatModelId: DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_CHAT_MODEL_ID)?.id ?? DEFAULT_CHAT_MODELS[0].id,
+  applyModelId: DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_APPLY_MODEL_ID)?.id ?? DEFAULT_CHAT_MODELS[0].id,
+  embeddingModelId: DEFAULT_EMBEDDING_MODELS[0].id,
+  
+  systemPrompt: '',
+  
+  ragOptions: {
+    chunkSize: 1000,
+    thresholdTokens: 8192,
+    minSimilarity: 0.0,
+    limit: 10,
+    excludePatterns: [],
+    includePatterns: [],
+  },
+  
+  mcp: {
+    servers: [],
+  },
+  
+  chatOptions: {
+    includeCurrentFileContent: true,
+    enableTools: true,
+    maxAutoIterations: 1,
+  },
+
+  // --- CORA MOD DEFAULTS ---
+  enableAutoStartServer: false,
+  lightRagCommand: 'lightrag-server',
+  lightRagWorkDir: '',
+}
 
 export type SettingMigration = {
   fromVersion: number

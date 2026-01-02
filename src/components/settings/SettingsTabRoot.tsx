@@ -12,6 +12,9 @@ import { ProvidersSection } from './sections/ProvidersSection'
 import { RAGSection } from './sections/RAGSection'
 import { TemplateSection } from './sections/TemplateSection'
 
+// --- CORA MOD: Importar ---
+import { NeuralSection } from './sections/NeuralSection' 
+
 type SettingsTabRootProps = {
   app: App
   plugin: SmartComposerPlugin
@@ -34,6 +37,11 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
           cta
         />
       </ObsidianSetting>
+
+      {/* --- CORA MOD: Insertar Sección Neural --- */}
+      <NeuralSection plugin={plugin} />
+      {/* --------------------------------------- */}
+
       <ChatSection />
       <ProvidersSection app={app} plugin={plugin} />
       <ModelsSection app={app} plugin={plugin} />

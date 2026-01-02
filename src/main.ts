@@ -1,5 +1,7 @@
 import { Editor, MarkdownView, Notice, Plugin } from 'obsidian'
 
+import { spawn, ChildProcess } from 'child_process';
+
 import { ApplyView } from './ApplyView'
 import { ChatView } from './ChatView'
 import { ChatProps } from './components/chat-view/Chat'
@@ -28,6 +30,8 @@ export default class SmartComposerPlugin extends Plugin {
   private dbManagerInitPromise: Promise<DatabaseManager> | null = null
   private ragEngineInitPromise: Promise<RAGEngine> | null = null
   private timeoutIds: ReturnType<typeof setTimeout>[] = [] // Use ReturnType instead of number
+  // 
+  private serverProcess: ChildProcess | null = null;
 
   async onload() {
     await this.loadSettings()
@@ -129,6 +133,11 @@ export default class SmartComposerPlugin extends Plugin {
     this.addSettingTab(new SmartComposerSettingTab(this.app, this))
 
     //void this.migrateToJsonStorage() // <-- Comentado!
+    // --- AUTO-START LOGIC ---
+    if (this.settings.enableAutoStartServer) {
+        this.startLightRagServer();
+    }
+
   }
 
   onunload() {
@@ -151,7 +160,78 @@ export default class SmartComposerPlugin extends Plugin {
     // McpManager cleanup
     this.mcpManager?.cleanup()
     this.mcpManager = null
+
+    // Matar el servidor si nosotros lo prendimos
+    if (this.serverProcess) {
+        console.log("🛑 Deteniendo LightRAG Server...");
+        this.serverProcess.kill();
+        this.serverProcess = null;
+    }
   }
+
+ async startLightRagServer() {
+    const command = this.settings.lightRagCommand;
+    const workDir = this.settings.lightRagWorkDir;
+
+    if (!workDir) {
+        new Notice("⚠️ Configura el directorio de LightRAG para iniciar el servidor.");
+        return;
+    }
+
+    // Verificar si ya está corriendo (Ping simple)
+    try {
+        const response = await fetch("http://localhost:9621/health"); // O cualquier endpoint
+        if (response.ok) {
+            console.log("✅ LightRAG Server ya estaba corriendo. No hago nada.");
+            return;
+        }
+    } catch (e) {
+        // Si falla la conexión, es que está apagado. Procedemos a encenderlo.
+    }
+
+    console.log(`🚀 Iniciando LightRAG en: ${workDir}`);
+    new Notice("🚀 Iniciando Motor Neural...");
+
+    try {
+        // EJECUTAR EL COMANDO EN SEGUNDO PLANO
+        // Nota para Windows: A veces requiere 'shell: true'
+        this.serverProcess = spawn(command, ['--port', '9621', '--working-dir', workDir], {
+            cwd: workDir, // Directorio de trabajo
+            shell: true,  // Importante en Windows
+            // --- CORA MOD: Inyectar UTF-8 para que Windows no explote con los emojis ---
+            env: { 
+                ...process.env, 
+                PYTHONIOENCODING: 'utf-8',
+                // Opcional: Forzar color para que se vea bonito si lo soporta
+                FORCE_COLOR: '1' 
+            }
+            // -------------------------------------------------------------------------
+        });
+
+        this.serverProcess.stdout?.on('data', (data) => {
+            console.log(`[LightRAG]: ${data}`);
+        });
+
+        this.serverProcess.stderr?.on('data', (data) => {
+            console.error(`[LightRAG Error]: ${data}`);
+        });
+
+        this.serverProcess.on('close', (code) => {
+            console.log(`[LightRAG] Proceso terminado con código ${code}`);
+            this.serverProcess = null;
+        });
+
+        // Esperar un poco y confirmar
+        setTimeout(() => {
+            if (this.serverProcess) new Notice("✅ Cerebro Neural Activado");
+        }, 3000);
+
+    } catch (error) {
+        console.error("❌ Error al iniciar servidor:", error);
+        new Notice("❌ Error al iniciar LightRAG. Revisa la consola.");
+    }
+  }
+
 
   async loadSettings() {
     this.settings = parseSmartComposerSettings(await this.loadData())
