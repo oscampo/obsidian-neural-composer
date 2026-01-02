@@ -59,6 +59,45 @@ export class RAGEngine {
     }
   }
 
+// --- INJERTO CORA: INGESTA CORREGIDA (VERSIÓN SWAGGER) ---
+  async insertDocument(content: string, description?: string): Promise<boolean> {
+    const safeName = description && description.trim() ? description : `Note_${Date.now()}.md`;
+    
+    console.log(`🕸️ [Cora Plugin] Ingestando en /documents/texts: ${safeName}...`);
+    
+    try {
+      // 1. Usamos el endpoint PLURAL (/texts)
+      const response = await fetch("http://localhost:9621/documents/texts", {
+        method: "POST",
+        headers: { 
+            "Content-Type": "application/json",
+        },
+        // 2. BODY SEGÚN LA IMAGEN
+        // Arrays paralelos: texts y file_sources
+        body: JSON.stringify({ 
+            "texts": [content],
+            "file_sources": [safeName] 
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Error ${response.status}: ${errText}`);
+      }
+
+      const data = await response.json();
+      console.log("✅ [Cora Plugin] Ingesta exitosa:", data);
+      return true;
+
+    } catch (error) {
+      console.error("❌ Error en ingesta:", error);
+      new Notice(`Error al guardar en el Grafo: ${error.message}`);
+      return false;
+    }
+  }
+//------------------------------------------------
+
+
 // --- INJERTO CORA: AUTO-HEALING RAG ---
   async processQuery({
     query,
