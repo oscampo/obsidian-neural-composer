@@ -91,6 +91,10 @@ export const smartComposerSettingsSchema = z.object({
   enableAutoStartServer: z.boolean().catch(false),
   lightRagCommand: z.string().catch('lightrag-server'),
   lightRagWorkDir: z.string().catch(''),
+  // NUEVO CAMPO:
+  lightRagSummaryLanguage: z.string().catch('English'), 
+    // NUEVO CAMPO: ID del modelo específico para el Grafo
+  lightRagModelId: z.string().optional(), 
   // ----------------------------------------------
 })
 
@@ -134,6 +138,9 @@ export const DEFAULT_SETTINGS: SmartComposerSettings = {
   enableAutoStartServer: false,
   lightRagCommand: 'lightrag-server',
   lightRagWorkDir: '',
+  // NUEVO DEFAULT:
+  lightRagSummaryLanguage: 'English',
+  lightRagModelId: '', // Por defecto vacío (usaremos lógica fallback)
 }
 
 export type SettingMigration = {
