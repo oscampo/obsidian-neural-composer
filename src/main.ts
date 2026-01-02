@@ -1,6 +1,6 @@
 import { Editor, MarkdownView, Notice, Plugin } from 'obsidian'
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process'; // <--- Agrega execSync
 
 import { ApplyView } from './ApplyView'
 import { ChatView } from './ChatView'
@@ -161,10 +161,26 @@ export default class SmartComposerPlugin extends Plugin {
     this.mcpManager?.cleanup()
     this.mcpManager = null
 
-    // Matar el servidor si nosotros lo prendimos
+    // 2. EXORCISMO SINCRÓNICO (GARANTIZADO)
     if (this.serverProcess) {
-        console.log("🛑 Deteniendo LightRAG Server...");
-        this.serverProcess.kill();
+        console.log("🛑 Ejecutando Orden 66 (Matar Servidor)...");
+        
+        try {
+            if (process.platform === 'win32') {
+                // execSync DETIENE todo hasta que el comando termina.
+                // /F = Fuerza bruta
+                // /IM = Por nombre de imagen
+                // /T = Mata también a los hijos (Tree)
+                // stdio: 'ignore' evita que la consola se queje si ya estaba muerto
+                execSync('taskkill /F /IM lightrag-server.exe /T', { stdio: 'ignore' });
+            } else {
+                this.serverProcess.kill();
+            }
+        } catch (error) {
+            // Si falla (ej: ya estaba muerto), no importa, seguimos cerrando.
+            console.log("El servidor ya estaba detenido o no se pudo matar.");
+        }
+        
         this.serverProcess = null;
     }
   }
@@ -351,34 +367,27 @@ async getDbManager(): Promise<DatabaseManager> {
     return {} as any; // Devolvemos un objeto vacío para que no chille TypeScript
 }
 
-  async getRAGEngine(): Promise<RAGEngine> {
+async getRAGEngine(): Promise<RAGEngine> {
     if (this.ragEngine) {
       return this.ragEngine
     }
 
     if (!this.ragEngineInitPromise) {
       this.ragEngineInitPromise = (async () => {
-        /*try {
-          const dbManager = await this.getDbManager()
+        try {
+          // CORA MOD: Bypass DB Manager
           this.ragEngine = new RAGEngine(
             this.app,
             this.settings,
-            dbManager.getVectorManager(),
+            {} as any, // vectorManager dummy
+            // --- CALLBACK DE RESURRECCIÓN ---
+            async () => {
+                console.log("♻️ RAGEngine solicitó reinicio del servidor...");
+                await this.startLightRagServer();
+            }
           )
           return this.ragEngine
-        }*/ 
-        try {
-          // CORA MOD: Bypass Vector Manager
-          // // Pasamos 'null' o un objeto vacío como vectorManager.
-          // // Como ya modificamos 'ragEngine.ts' para no usarlo, no importa.
-        this.ragEngine = new RAGEngine(
-          this.app,
-          this.settings,
-          {} as any, // <--- ¡AQUÍ ESTÁ EL TRUCO!
-      )
-      return this.ragEngine
-    }
-    catch (error) {
+        } catch (error) {
           this.ragEngineInitPromise = null
           throw error
         }

@@ -1,4 +1,4 @@
-import { App, TFile } from 'obsidian' // <--- 1. ¡IMPORTANTE! Agregado TFile
+import { App, TFile , Notice} from 'obsidian' // <--- 1. ¡IMPORTANTE! Agregado TFile
 
 import { QueryProgressState } from '../../components/chat-view/QueryProgress'
 import { VectorManager } from '../../database/modules/vector/VectorManager'
@@ -8,20 +8,28 @@ import { EmbeddingModelClient } from '../../types/embedding'
 
 import { getEmbeddingModelClient } from './embedding'
 
+
+
 export class RAGEngine {
   private app: App
   private settings: SmartComposerSettings
   private vectorManager: VectorManager | null = null
   private embeddingModel: EmbeddingModelClient | null = null
+    // --- NUEVA PROPIEDAD ---
+  private restartServerCallback: () => Promise<void>;
 
   constructor(
     app: App,
     settings: SmartComposerSettings,
     vectorManager: VectorManager,
+    // --- NUEVO PARÁMETRO ---
+    restartServerCallback?: () => Promise<void> 
   ) {
     this.app = app
     this.settings = settings
     this.vectorManager = vectorManager
+    // Asignamos la función (o una vacía si no existe para evitar crash)
+    this.restartServerCallback = restartServerCallback || (async () => {}); 
     this.embeddingModel = getEmbeddingModelClient({
       settings,
       embeddingModelId: settings.embeddingModelId,
@@ -51,8 +59,8 @@ export class RAGEngine {
     }
   }
 
-// --- INICIO DEL INJERTO CORA (VERSIÓN HÍBRIDA: LOCAL + GRAFO) ---
- async processQuery({
+// --- INJERTO CORA: AUTO-HEALING RAG ---
+  async processQuery({
     query,
     scope,
     onQueryProgressChange,
@@ -69,22 +77,17 @@ export class RAGEngine {
     })[]
   > {
     
-    // 1. ESTRATEGIA LOCAL (Chat normal con @Archivo)
+    // 1. ESTRATEGIA LOCAL (Se mantiene igual)
     if (scope && scope.files && scope.files.length > 0) {
-        // ... (Mismo código de lectura local que ya funcionaba) ...
-        // (Te lo resumo aquí para no ocupar espacio, déjalo igual)
+        // ... (Copia aquí tu lógica local anterior que ya funcionaba) ...
+        // (Resumida para ahorrar espacio en el chat, pero tú mantén la que tenías)
         const localResults: any[] = [];
         for (const filePath of scope.files) {
              const file = this.app.vault.getAbstractFileByPath(filePath);
              if (file instanceof TFile) {
                 const content = await this.app.vault.read(file);
                 localResults.push({
-                    id: -1,
-                    model: 'local-file',
-                    path: filePath,
-                    content: content,
-                    similarity: 1.0,
-                    mtime: file.stat.mtime,
+                    id: -1, model: 'local-file', path: filePath, content: content, similarity: 1.0, mtime: file.stat.mtime,
                     metadata: { startLine: 0, endLine: 0, fileName: file.name, content: content }
                 });
              }
@@ -93,64 +96,70 @@ export class RAGEngine {
         return localResults;
     }
 
-    // 2. ESTRATEGIA GLOBAL (Vault Chat -> LightRAG)
-    console.log("🕸️ [Cora Plugin] Consultando LightRAG Server...");
+    // 2. ESTRATEGIA GLOBAL CON AUTO-REPARACIÓN
+    console.log("🕸️ [Cora Plugin] Consultando Grafo Global...");
     onQueryProgressChange?.({ type: 'querying' })
 
-try {
-      // 1. LLAMADA AL SERVIDOR
-      const response = await fetch("http://localhost:9621/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            query: query, 
-            mode: "hybrid", 
-            stream: false,
-            only_need_context: false
-        })
-      });
+    const performQuery = async () => {
+        const response = await fetch("http://localhost:9621/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                query: query, mode: "hybrid", stream: false, only_need_context: false
+            })
+        });
+        if (!response.ok) throw new Error(`Status ${response.status}`);
+        return await response.json();
+    };
 
-      if (!response.ok) throw new Error(`Error LightRAG: ${response.status}`);
+    try {
+      let data;
+      
+      try {
+          // INTENTO 1: Normal
+          data = await performQuery();
+      } catch (firstError) {
+          console.warn("⚠️ Falló el primer intento. El servidor podría estar dormido.", firstError);
+          
+          if (this.settings.enableAutoStartServer) {
+              // INTENTO DE RESURRECCIÓN
+              onQueryProgressChange?.({ type: 'querying' }); // Spinner simple
+              new Notice("🧠 Despertando el cerebro... (Espera unos segundos)");
+              
+              // 1. Llamar al reinicio
+              await this.restartServerCallback();
+              
+              // 2. Esperar cortesía a que Uvicorn arranque (4 segundos)
+              await new Promise(resolve => setTimeout(resolve, 4000));
+              
+              console.log("🔄 Reintentando consulta...");
+              // INTENTO 2: Post-Resurrección
+              data = await performQuery();
+          } else {
+              throw firstError; // Si el auto-start está apagado, fallar normal.
+          }
+      }
 
-      const data = await response.json();
-      console.log("✅ [Cora Plugin] Datos recibidos:", data);
-
+      // --- PROCESAMIENTO DE RESPUESTA (Igual que antes) ---
+      console.log("✅ Datos recibidos:", data);
       const results: any[] = [];
-
-      // A. LA RESPUESTA GENERADA (Lo más importante)
       const graphAnswer = typeof data === 'string' ? data : (data.response || "");
       
       if (graphAnswer) {
           results.push({
-              id: -1,
-              model: 'lightrag-answer',
-              path: "❤️ Respuesta de Cora (Grafo)",
-              content: graphAnswer,
-              similarity: 1.0,
-              mtime: Date.now(),
+              id: -1, model: 'lightrag-answer', path: "❤️ Respuesta de Cora (Grafo)",
+              content: graphAnswer, similarity: 1.0, mtime: Date.now(),
               metadata: { startLine: 0, endLine: 0, fileName: "GraphAnswer", content: graphAnswer }
           });
       }
 
-      // B. LAS REFERENCIAS (Solo Títulos/Rutas)
-      // No leemos el contenido del disco. Solo listamos los archivos.
       if (data.references && Array.isArray(data.references)) {
-          
-          // Opcional: Crear un solo documento que liste todas las fuentes para ahorrar espacio visual
-          // O crear uno por cada archivo (como pediste). Hagamos uno por archivo para que se vea la lista.
-          
           for (let i = 0; i < data.references.length; i++) {
               const ref = data.references[i];
               const filePath = ref.file_path || `Ref #${i+1}`;
-              
               results.push({
-                  id: -(i + 2), // IDs únicos negativos
-                  model: 'lightrag-ref',
-                  path: `📂 ${filePath}`, // Esto es lo que verás en la lista
-                  // Contenido mínimo para que el plugin no falle, pero sin gastar tokens
-                  content: `[Fuente utilizada por el Grafo: ${filePath}]`, 
-                  similarity: 0.5, // Menor relevancia que la respuesta principal
-                  mtime: Date.now(),
+                  id: -(i + 2), model: 'lightrag-ref', path: `📂 ${filePath}`,
+                  content: `[Fuente del Grafo]`, similarity: 0.5, mtime: Date.now(),
                   metadata: { startLine: 0, endLine: 0, fileName: filePath }
               });
           }
@@ -160,11 +169,15 @@ try {
       return results;
 
     } catch (error) {
-        console.error("❌ Error:", error);
-        return [];
+      console.error("❌ Error definitivo:", error);
+      const errorDoc: any = {
+          id: -2, path: "⚠️ Cerebro Desconectado",
+          content: `No pude conectar con el servidor LightRAG.\nIntenté reiniciarlo pero no respondió.\n\nError: ${error.message}`,
+          similarity: 1.0, metadata: { startLine: 0, endLine: 0 }
+      };
+      return [errorDoc];
     }
   }
-  // --- FIN DEL INJERTO CORA ---
 
   private async getQueryEmbedding(query: string): Promise<number[]> {
     if (!this.embeddingModel) {
