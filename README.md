@@ -11,7 +11,7 @@ It upgrades your note-taking experience by connecting Obsidian to a local **Ligh
 
 *   **⚡ Automated Server Management:** The plugin manages the lifecycle of the LightRAG server. It can **auto-start**, **stop**, and **restart** the Python server directly from Obsidian.
 *   **⚙️ Dynamic Configuration:** No need to manually edit `.env` files. The plugin automatically generates the server configuration based on your selected LLM and Embedding models in the settings.
-*   **📥 Integrated Ingestion:** Add memories to your graph without leaving Obsidian.
+*   **📥 Integrated Ingestion:** Add documents to your graph without leaving Obsidian.
     *   **Single Note:** Command to ingest the current file.
     *   **Batch Ingestion:** Right-click any folder to ingest all notes recursively.
 *   **📊 Pipeline Monitoring:** Real-time progress bars and status updates from the server during ingestion.
