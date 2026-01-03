@@ -19,6 +19,22 @@ import { parseSmartComposerSettings } from './settings/schema/settings'
 import { SmartComposerSettingTab } from './settings/SettingTab'
 import { getMentionableBlockData } from './utils/obsidian'
 
+// --- LISTA MAESTRA DE EXTENSIONES ---
+const SUPPORTED_EXTENSIONS = [
+    'md', 'txt', 'docx', 'pdf', 'pptx', 'xlsx', 'rtf', 'odt', 'epub',
+    'html', 'htm', 'xml', 'json', 'yaml', 'yml', 'csv',
+    'tex', 'log', 'conf', 'ini', 'properties', 'sql', 'bat', 'sh', 
+    'c', 'cpp', 'py', 'java', 'js', 'ts', 'swift', 'go', 'rb', 'php',
+    'css', 'scss', 'less'
+];
+
+const TEXT_BASED_EXTENSIONS = [
+    'md', 'txt', 'html', 'htm', 'xml', 'json', 'yaml', 'yml', 'csv', 
+    'tex', 'log', 'conf', 'ini', 'properties', 'sql', 'bat', 'sh', 
+    'c', 'cpp', 'py', 'java', 'js', 'ts', 'swift', 'go', 'rb', 'php', 
+    'css', 'scss', 'less'
+];
+
 export default class SmartComposerPlugin extends Plugin {
   settings: SmartComposerSettings
   initialChatProps?: ChatProps 
@@ -55,19 +71,9 @@ export default class SmartComposerPlugin extends Plugin {
       },
     })
 
-    // Comandos de re-indexación (Mantenidos por compatibilidad visual, aunque no los usamos en LightRAG)
-    this.addCommand({
-        id: 'rebuild-vault-index',
-        name: 'Rebuild vault index (Legacy)',
-        callback: async () => new Notice("Please use LightRAG WebUI for indexing.")
-    })
-
-    this.addSettingTab(new SmartComposerSettingTab(this.app, this))
-
-// --- CORA MOD: MENÚ CONTEXTUAL PARA CARPETAS ---
+    // --- MENÚ CONTEXTUAL (CARPETAS) ---
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file) => {
-        // Solo mostramos esta opción si le das clic a una CARPETA
         if (file instanceof TFolder) {
           menu.addItem((item) => {
             item
@@ -80,50 +86,70 @@ export default class SmartComposerPlugin extends Plugin {
         }
       })
     );
-    // -----------------------------------------------
 
-    // --- CORA MOD: COMANDO DE INGESTA ---
+// --- CORA MOD: COMANDO DE INGESTA UNIVERSAL (TEXTO Y BINARIOS) ---
     this.addCommand({
-      id: 'ingest-current-note',
-      name: '🧠 Ingest current note into Knowledge Graph',
-      editorCallback: async (editor: Editor, view: MarkdownView) => {
-        const content = editor.getValue();
-        const title = view.file?.basename || "Untitled";
+      id: 'ingest-current-file', // ID actualizado (aunque puedes dejar el anterior si quieres mantener hotkeys)
+      name: '🧠 Ingest current file into Knowledge Graph',
+      // Usamos checkCallback para soportar PDFs, Imágenes, etc., no solo Markdown
+      checkCallback: (checking: boolean) => {
+        const file = this.app.workspace.getActiveFile();
         
-        if (!content.trim()) {
-            new Notice("⚠️ La nota está vacía.");
-            return;
+        // 1. Verificación Rápida: ¿Hay archivo y es soportado?
+        if (!file || !SUPPORTED_EXTENSIONS.includes(file.extension.toLowerCase())) {
+            return false; // El comando se oculta si no es un archivo válido
         }
 
-        const notice = new Notice(`🧠 Aprendiendo: "${title}"...\nEsto puede tomar unos segundos.`, 0); // 0 = se queda fijo
+        // Si solo estamos chequeando (para mostrar en la paleta), decimos que sí
+        if (checking) {
+            return true;
+        }
 
-        try {
-            const ragEngine = await this.getRAGEngine();
-            
-            // Le pasamos el contenido completo al servidor
-            // Agregamos el título al inicio para darle contexto al Grafo
-            const enrichedContent = `Title: ${title}\n\n${content}`;
-            
-            const success = await ragEngine.insertDocument(enrichedContent, title);
+        // 2. Ejecución Real (async)
+        (async () => {
+            const title = file.basename;
+            const ext = file.extension.toLowerCase();
+            const notice = new Notice(`🧠 Enviando "${file.name}" al cerebro...`, 0);
 
-            if (success) {
-                notice.setMessage(`✅ ¡Aprendido! "${title}" ya es parte de mi memoria.`);
-                setTimeout(() => notice.hide(), 5000); // Esconder a los 5s
-            } else {
-                notice.setMessage(`❌ Falló la ingesta de "${title}".`);
+            try {
+                const ragEngine = await this.getRAGEngine();
+                let success = false;
+                
+                // DECISIÓN TÁCTICA: ¿TEXTO O UPLOAD?
+                if (TEXT_BASED_EXTENSIONS.includes(ext)) {
+                     // Leemos el texto directamente
+                     const content = await this.app.vault.read(file);
+                     // Enriquecemos con título si es MD para mejor contexto en el grafo
+                     const finalContent = ext === 'md' ? `Title: ${title}\n\n${content}` : content;
+                     
+                     success = await ragEngine.insertDocument(finalContent, file.name);
+                } else {
+                     // Subimos el archivo binario (PDF, DOCX, etc.)
+                     success = await ragEngine.uploadDocument(file);
+                }
+
+                if (success) {
+                    notice.setMessage(`✅ Enviado. Procesando en segundo plano...`);
+                    // Iniciamos el monitoreo para que el usuario vea el progreso real
+                    await this.monitorPipeline(notice);
+                } else {
+                    notice.setMessage(`❌ Falló el envío de "${title}".`);
+                    setTimeout(() => notice.hide(), 5000);
+                }
+
+            } catch (error) {
+                console.error(error);
+                notice.setMessage(`❌ Error crítico al conectar con el cerebro.`);
                 setTimeout(() => notice.hide(), 5000);
             }
-
-        } catch (error) {
-            console.error(error);
-            notice.setMessage(`❌ Error crítico al conectar con el cerebro.`);
-            setTimeout(() => notice.hide(), 5000);
-        }
+        })();
       },
     })
     // ------------------------------------
 
-    // --- AUTO-START SEGURO ---
+    this.addSettingTab(new SmartComposerSettingTab(this.app, this))
+
+    // --- AUTO-START ---
     this.app.workspace.onLayoutReady(() => {
         if (this.settings.enableAutoStartServer) {
             this.startLightRagServer();
@@ -131,10 +157,119 @@ export default class SmartComposerPlugin extends Plugin {
     });
   }
 
+  // --- LÓGICA DE MONITOREO (TRANSPARENCIA) ---
+  async monitorPipeline(notice: Notice) {
+    let isBusy = true;
+    let errors = 0;
+    // Esperar un momento para que el servidor registre la tarea
+    await new Promise(r => setTimeout(r, 1000));
+
+    while (isBusy) {
+        try {
+            const response = await fetch("http://localhost:9621/documents/pipeline_status");
+            if (!response.ok) throw new Error("Status error");
+            
+            const status = await response.json();
+            
+            // Si hay documentos en cola (docs > 0) y busy es false, puede que haya terminado o no empezado.
+            // Pero generalmente 'busy' es el indicador clave.
+            isBusy = status.busy;
+            
+            if (isBusy) {
+                const total = status.batchs || 1;
+                const current = status.cur_batch || 0;
+                const percent = Math.round((current / total) * 100);
+                
+                notice.setMessage(
+                    `🧠 Cerebro procesando...\n` +
+                    `⚙️ Progreso: ${percent}% (${current}/${total})\n` +
+                    `📝 ${status.latest_message || "Analizando..."}`
+                );
+            }
+
+            if (!isBusy) break;
+
+            await new Promise(r => setTimeout(r, 1500)); // Polling cada 1.5s
+
+        } catch (e) {
+            errors++;
+            if (errors > 3) isBusy = false;
+            await new Promise(r => setTimeout(r, 2000));
+        }
+    }
+    
+    notice.setMessage("🎉 ¡Conocimiento Integrado!\nEl grafo está actualizado.");
+    setTimeout(() => notice.hide(), 5000);
+  }
+
+  // --- LÓGICA DE BATCH ---
+  private getAllSupportedFiles(folder: TFolder): TFile[] {
+    let files: TFile[] = [];
+    for (const child of folder.children) {
+        if (child instanceof TFile) {
+            if (SUPPORTED_EXTENSIONS.includes(child.extension.toLowerCase())) {
+                files.push(child);
+            }
+        } else if (child instanceof TFolder) {
+            files = files.concat(this.getAllSupportedFiles(child));
+        }
+    }
+    return files;
+  }
+
+  async batchIngestFolder(folder: TFolder) {
+    const files = this.getAllSupportedFiles(folder);
+    if (files.length === 0) {
+        new Notice("⚠️ Carpeta vacía o sin archivos soportados.");
+        return;
+    }
+
+    const notice = new Notice(`📦 Enviando ${files.length} archivos al cerebro...`, 0);
+    
+    try {
+        const ragEngine = await this.getRAGEngine();
+        let successCount = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const ext = file.extension.toLowerCase();
+            
+            notice.setMessage(`📦 Enviando (${i + 1}/${files.length}):\n📄 ${file.name}`);
+            
+            try {
+                let result = false;
+                if (TEXT_BASED_EXTENSIONS.includes(ext)) {
+                    const content = await this.app.vault.read(file);
+                    const finalContent = ext === 'md' ? `Title: ${file.basename}\n\n${content}` : content;
+                    result = await ragEngine.insertDocument(finalContent, file.name);
+                } else {
+                    result = await ragEngine.uploadDocument(file);
+                }
+                
+                if (result) successCount++;
+                await new Promise(resolve => setTimeout(resolve, 200)); 
+
+            } catch (err) {
+                console.error(`Error en ${file.name}:`, err);
+            }
+        }
+
+        // Una vez enviados, iniciamos el monitoreo del procesamiento real
+        notice.setMessage(`✅ Archivos enviados (${successCount}).\n🧠 Iniciando procesamiento neuronal...`);
+        await this.monitorPipeline(notice);
+
+    } catch (error) {
+        console.error("Error batch:", error);
+        notice.setMessage("❌ Error iniciando carga.");
+        setTimeout(() => notice.hide(), 5000);
+    }
+  }
+
+  // --- RESTO DEL CÓDIGO (LIFECYCLE, SERVER MANAGE) ---
+  
   onunload() {
     this.timeoutIds.forEach((id) => clearTimeout(id))
     this.timeoutIds = []
-
     this.ragEngine?.cleanup()
     this.ragEngine = null
     this.dbManagerInitPromise = null
@@ -143,40 +278,29 @@ export default class SmartComposerPlugin extends Plugin {
     this.dbManager = null
     this.mcpManager?.cleanup()
     this.mcpManager = null
-
-    // LIMPIEZA DE PROCESOS
     this.stopLightRagServer();
   }
 
-  // --- GESTIÓN DE SERVIDOR ---
-
   public stopLightRagServer() {
     console.log("🛑 Deteniendo servicios LightRAG...");
-    
-    // Intento 1: Si tenemos la referencia del proceso
     if (this.serverProcess) {
         this.serverProcess.kill();
         this.serverProcess = null;
     }
-
-    // Intento 2: Limpieza profunda por nombre (Para zombis)
     try {
         if (process.platform === 'win32') {
             execSync('taskkill /F /IM lightrag-server.exe /T', { stdio: 'ignore' });
-            // Opcional: execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' }); 
         }
-    } catch (error) {
-        // Ignorar si no había procesos
-    }
+    } catch (error) {}
   }
 
   public async restartLightRagServer() {
     new Notice("🔄 Reiniciando Neural Backend...");
     this.stopLightRagServer();
-    
     setTimeout(async () => {
+        await this.updateEnvFile();
         await this.startLightRagServer();
-    }, 2000); // Espera un poco más para liberar puertos
+    }, 2000);
   }
 
   public async updateEnvFile() {
@@ -184,7 +308,6 @@ export default class SmartComposerPlugin extends Plugin {
     if (!workDir) return;
 
     try {
-        // 1. IDENTIFICAR MODELOS (Lógica "Caprichosa")
         const targetLlmId = this.settings.lightRagModelId || this.settings.chatModelId;
         const embeddingId = this.settings.embeddingModelId;
         
@@ -194,27 +317,20 @@ export default class SmartComposerPlugin extends Plugin {
         const llmProvider = this.settings.providers.find(p => p.id === llmModelObj?.providerId);
         const embedProvider = this.settings.providers.find(p => p.id === embedModelObj?.providerId);
 
-        // 2. CONSTRUIR .ENV
         let envContent = `# Generated by Neural Composer\n`;
         envContent += `WORKING_DIR=${workDir}\n`;
         envContent += `HOST=0.0.0.0\n`;
         envContent += `PORT=9621\n`;
-        envContent += `SUMMARY_LANGUAGE=${this.settings.lightRagSummaryLanguage || 'Spanish'}\n\n`;
+        envContent += `SUMMARY_LANGUAGE=${this.settings.lightRagSummaryLanguage || 'English'}\n\n`;
 
-        // LLM
         if (llmModelObj && llmProvider) {
             envContent += `# LLM Configuration\n`;
             envContent += `LLM_BINDING=${llmProvider.id}\n`;
             envContent += `LLM_MODEL=${llmModelObj.model}\n`;
-            
-            if (llmProvider.id === 'ollama' && llmProvider.baseUrl) {
-                 envContent += `OLLAMA_HOST=${llmProvider.baseUrl}\n`;
-            } else if (llmProvider.id === 'openai' && llmProvider.baseUrl?.includes('localhost')) {
-                 envContent += `OPENAI_BASE_URL=${llmProvider.baseUrl}\n`;
-            }
+            if (llmProvider.id === 'ollama' && llmProvider.baseUrl) envContent += `OLLAMA_HOST=${llmProvider.baseUrl}\n`;
+            else if (llmProvider.id === 'openai' && llmProvider.baseUrl?.includes('localhost')) envContent += `OPENAI_BASE_URL=${llmProvider.baseUrl}\n`;
         }
 
-        // Embeddings
         if (embedModelObj && embedProvider) {
             envContent += `\n# Embedding Configuration\n`;
             envContent += `EMBEDDING_BINDING=${embedProvider.id}\n`;
@@ -223,7 +339,6 @@ export default class SmartComposerPlugin extends Plugin {
             envContent += `MAX_TOKEN_SIZE=8192\n`;
         }
 
-        // API Keys (Acumuladas)
         const providersNeeded = new Set([llmProvider, embedProvider]);
         envContent += `\n# API Keys\n`;
         providersNeeded.forEach(p => {
@@ -238,10 +353,7 @@ export default class SmartComposerPlugin extends Plugin {
         const envPath = path.join(workDir, '.env');
         fs.writeFileSync(envPath, envContent);
         console.log(`📝 .env actualizado en: ${envPath}`);
-
-    } catch (err) {
-        console.error("❌ Error actualizando .env:", err);
-    }
+    } catch (err) { console.error("❌ Error actualizando .env:", err); }
   }
 
   async startLightRagServer() {
@@ -253,23 +365,18 @@ export default class SmartComposerPlugin extends Plugin {
         return;
     }
 
-    // 1. Generar configuración
     await this.updateEnvFile();
 
-    // 2. Verificar estado actual
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 1000);
         const response = await fetch("http://localhost:9621/health", { signal: controller.signal });
         clearTimeout(timeoutId);
-        
         if (response.ok) {
             console.log("✅ LightRAG Server ya estaba activo.");
             return;
         }
-    } catch (e) {
-        // Servidor apagado, procedemos a iniciar
-    }
+    } catch (e) {}
 
     console.log(`🚀 Iniciando LightRAG en: ${workDir}`);
     new Notice("🚀 Iniciando Motor Neural...");
@@ -278,11 +385,7 @@ export default class SmartComposerPlugin extends Plugin {
         this.serverProcess = spawn(command, ['--port', '9621', '--working-dir', workDir], {
             cwd: workDir,
             shell: true,
-            env: { 
-                ...process.env, 
-                PYTHONIOENCODING: 'utf-8', // Vital para Windows
-                FORCE_COLOR: '1' 
-            }
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8', FORCE_COLOR: '1' }
         });
 
         this.serverProcess.stdout?.on('data', (data) => console.log(`[LightRAG]: ${data}`));
@@ -296,14 +399,11 @@ export default class SmartComposerPlugin extends Plugin {
         setTimeout(() => {
             if (this.serverProcess) new Notice("✅ Cerebro Neural Activado");
         }, 5000);
-
     } catch (error) {
         console.error("❌ Error al iniciar servidor:", error);
         new Notice("❌ Error fatal iniciando servidor.");
     }
   }
-
-  // --- CONFIGURACIÓN ESTÁNDAR DEL PLUGIN ---
 
   async loadSettings() {
     this.settings = parseSmartComposerSettings(await this.loadData())
@@ -367,27 +467,17 @@ export default class SmartComposerPlugin extends Plugin {
     chatView.focusMessage()
   }
 
-  // --- LOBOTOMÍA DE DB MANAGER ---
-  async getDbManager(): Promise<DatabaseManager> {
-    console.log("🕸️ [Cora Mod] Bypass DB Local...");
-    return {} as any; 
-  }
+  // --- BYPASS ---
+  async getDbManager(): Promise<DatabaseManager> { return {} as any; }
 
   async getRAGEngine(): Promise<RAGEngine> {
     if (this.ragEngine) return this.ragEngine
-
     if (!this.ragEngineInitPromise) {
       this.ragEngineInitPromise = (async () => {
         try {
           this.ragEngine = new RAGEngine(
-            this.app,
-            this.settings,
-            {} as any,
-            // Callback de resurrección
-            async () => {
-                console.log("♻️ Solicitando reinicio del servidor...");
-                await this.restartLightRagServer();
-            }
+            this.app, this.settings, {} as any,
+            async () => { await this.restartLightRagServer(); }
           )
           return this.ragEngine
         } catch (error) {
@@ -412,130 +502,6 @@ export default class SmartComposerPlugin extends Plugin {
       this.mcpManager = null
       throw error
     }
-  }
-
-// --- LÓGICA DE INGESTA MASIVA ---
-
-  // 1. Recolector Recursivo de Archivos
-  private getAllMarkdownFiles(folder: TFolder): TFile[] {
-    let files: TFile[] = [];
-    
-    for (const child of folder.children) {
-        if (child instanceof TFile && child.extension === 'md') {
-            files.push(child);
-        } else if (child instanceof TFolder) {
-            // Recursividad: Si es carpeta, busca adentro
-            files = files.concat(this.getAllMarkdownFiles(child));
-        }
-    }
-    return files;
-  }
-
-  // 2. El Procesador por Lotes
-  async batchIngestFolder(folder: TFolder) {
-    const files = this.getAllMarkdownFiles(folder);
-    
-    if (files.length === 0) {
-        new Notice("⚠️ No se encontraron archivos Markdown en esta carpeta.");
-        return;
-    }
-
-    // Aviso inicial
-    const notice = new Notice(`🧠 Iniciando ingesta masiva de ${files.length} archivos...\nEsto tomará un tiempo.`, 0);
-    
-    try {
-        const ragEngine = await this.getRAGEngine();
-        let successCount = 0;
-        let failCount = 0;
-
-        // Procesamos UNO POR UNO para no saturar el servidor ni la UI
-        // (Podríamos usar Promise.all para concurrencia, pero secuencial es más seguro y estable)
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            
-            // Actualizar la notificación visualmente
-            notice.setMessage(`🧠 Procesando (${i + 1}/${files.length}):\n📄 ${file.name}`);
-            
-            try {
-                const content = await this.app.vault.read(file);
-                const title = file.basename;
-                const enrichedContent = `Title: ${title}\n\n${content}`;
-
-                // Llamamos al motor de ingesta
-                const result = await ragEngine.insertDocument(enrichedContent, title);
-                
-                if (result) successCount++;
-                else failCount++;
-
-                // Pequeña pausa para dejar respirar a la UI y al Server
-                await new Promise(resolve => setTimeout(resolve, 500)); 
-
-            } catch (err) {
-                console.error(`Error en archivo ${file.name}:`, err);
-                failCount++;
-            }
-        }
-
-// AL FINAL DEL BUCLE, EN LUGAR DE DECIR "LISTO":
-    
-    notice.setMessage("🚀 Datos enviados. Esperando confirmación del cerebro...");
-    
-    // Iniciar monitoreo
-    await this.monitorPipeline(notice);
-
-    } catch (error) {
-        console.error("Error crítico en batch:", error);
-        notice.setMessage("❌ Error crítico iniciando el proceso.");
-    }
-
-
-  }
-
-  // --- CORA MOD: MONITOREO DE PIPELINE ---
-  async monitorPipeline(notice: Notice) {
-    let isBusy = true;
-    let errors = 0;
-
-    while (isBusy) {
-        try {
-            // Preguntar estado
-            const response = await fetch("http://localhost:9621/documents/pipeline_status");
-            if (!response.ok) throw new Error("Error status");
-            
-            const status = await response.json();
-            
-            // Actualizar UI
-            // status.busy: true si está trabajando
-            // status.cur_batch / status.batchs: Progreso
-            isBusy = status.busy;
-            
-            if (isBusy) {
-                const percent = status.batchs > 0 
-                    ? Math.round((status.cur_batch / status.batchs) * 100) 
-                    : 0;
-                
-                notice.setMessage(
-                    `🧠 Cerebro trabajando...\n` +
-                    `⚙️ Lote: ${status.cur_batch} / ${status.batchs} (${percent}%)\n` +
-                    `📝 ${status.latest_message || "Procesando..."}`
-                );
-            }
-
-            // Esperar 2 segundos antes de volver a preguntar
-            await new Promise(r => setTimeout(r, 2000));
-
-        } catch (e) {
-            errors++;
-            if (errors > 5) {
-                isBusy = false; // Romper si el servidor no responde
-                notice.setMessage("⚠️ Se perdió conexión con el estado del servidor, pero el proceso podría seguir en fondo.");
-            }
-            await new Promise(r => setTimeout(r, 2000));
-        }
-    }
-    
-    notice.setMessage("🎉 ¡Aprendizaje Completado!\nEl conocimiento ya está en el Grafo.");
-    setTimeout(() => notice.hide(), 5000);
   }
 
   private registerTimeout(callback: () => void, timeout: number): void {

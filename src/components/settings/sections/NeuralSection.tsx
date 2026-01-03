@@ -106,7 +106,23 @@ export const NeuralSection = ({ plugin }: { plugin: SmartComposerPlugin }) => {
           }),
       )
 
-    // 5. RESTART BUTTON
+
+    // 5. CITATION TOGGLE
+    new Setting(container)
+      .setName('Show Citations in Chat')
+      .setDesc('If enabled, the AI will add footnotes (e.g., [1]) linking to sources. Disable for a more natural conversation.')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(plugin.settings.lightRagShowCitations)
+          .onChange(async (value) => {
+            await plugin.setSettings({
+              ...plugin.settings,
+              lightRagShowCitations: value,
+            })
+          }),
+      )
+
+    // 6. RESTART BUTTON
     new Setting(container)
       .setName('Apply Changes & Restart')
       .setDesc('Restart the LightRAG server to apply new configuration settings (.env).')

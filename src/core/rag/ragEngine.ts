@@ -1,4 +1,4 @@
-import { App, TFile , Notice} from 'obsidian' // <--- 1. ¡IMPORTANTE! Agregado TFile
+import { App, TFile, Notice } from 'obsidian'
 
 import { QueryProgressState } from '../../components/chat-view/QueryProgress'
 import { VectorManager } from '../../database/modules/vector/VectorManager'
@@ -8,27 +8,22 @@ import { EmbeddingModelClient } from '../../types/embedding'
 
 import { getEmbeddingModelClient } from './embedding'
 
-
-
 export class RAGEngine {
   private app: App
   private settings: SmartComposerSettings
   private vectorManager: VectorManager | null = null
   private embeddingModel: EmbeddingModelClient | null = null
-    // --- NUEVA PROPIEDAD ---
   private restartServerCallback: () => Promise<void>;
 
   constructor(
     app: App,
     settings: SmartComposerSettings,
     vectorManager: VectorManager,
-    // --- NUEVO PARÁMETRO ---
     restartServerCallback?: () => Promise<void> 
   ) {
     this.app = app
     this.settings = settings
     this.vectorManager = vectorManager
-    // Asignamos la función (o una vacía si no existe para evitar crash)
     this.restartServerCallback = restartServerCallback || (async () => {}); 
     this.embeddingModel = getEmbeddingModelClient({
       settings,
@@ -53,73 +48,69 @@ export class RAGEngine {
     options: { reindexAll: boolean } = { reindexAll: false },
     onQueryProgressChange?: (queryProgress: QueryProgressState) => void,
   ): Promise<void> {
-    // Método neutralizado o mantenido por compatibilidad, pero no lo usamos activamente
-    if (!this.embeddingModel) {
-      throw new Error('Embedding model is not set')
-    }
+    if (!this.embeddingModel) throw new Error('Embedding model is not set')
   }
 
-// --- INJERTO CORA: INGESTA CORREGIDA (VERSIÓN SWAGGER) ---
+  // --- 1. INGESTA TEXTO ---
   async insertDocument(content: string, description?: string): Promise<boolean> {
     const safeName = description && description.trim() ? description : `Note_${Date.now()}.md`;
-    
-    console.log(`🕸️ [Cora Plugin] Ingestando en /documents/texts: ${safeName}...`);
-    
+    console.log(`🕸️ [Cora Plugin] Ingestando Texto: ${safeName}...`);
     try {
-      // 1. Usamos el endpoint PLURAL (/texts)
       const response = await fetch("http://localhost:9621/documents/texts", {
         method: "POST",
-        headers: { 
-            "Content-Type": "application/json",
-        },
-        // 2. BODY SEGÚN LA IMAGEN
-        // Arrays paralelos: texts y file_sources
-        body: JSON.stringify({ 
-            "texts": [content],
-            "file_sources": [safeName] 
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "texts": [content], "file_sources": [safeName] })
       });
-
       if (!response.ok) {
         const errText = await response.text();
         throw new Error(`Error ${response.status}: ${errText}`);
       }
-
-      const data = await response.json();
-      console.log("✅ [Cora Plugin] Ingesta exitosa:", data);
+      console.log("✅ [Cora Plugin] Ingesta de texto exitosa.");
       return true;
-
     } catch (error) {
-      console.error("❌ Error en ingesta:", error);
+      console.error("❌ Error en ingesta texto:", error);
       new Notice(`Error al guardar en el Grafo: ${error.message}`);
       return false;
     }
   }
-//------------------------------------------------
 
+  // --- 2. INGESTA BINARIA ---
+  async uploadDocument(file: TFile): Promise<boolean> {
+    console.log(`🕸️ [Cora Plugin] Subiendo binario: ${file.name}...`);
+    try {
+      const arrayBuffer = await this.app.vault.readBinary(file);
+      const blob = new Blob([arrayBuffer]);
+      const formData = new FormData();
+      formData.append('file', blob, file.name); 
+      
+      const response = await fetch("http://localhost:9621/documents/upload", {
+        method: "POST",
+        body: formData 
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Error ${response.status}: ${errText}`);
+      }
+      console.log("✅ [Cora Plugin] Subida binaria exitosa.");
+      return true;
+    } catch (error) {
+      console.error("❌ Error subiendo archivo:", error);
+      new Notice(`Error al subir ${file.name}: ${error.message}`);
+      return false;
+    }
+  }
 
-// --- INJERTO CORA: AUTO-HEALING RAG ---
+  // --- 3. CONSULTA MAESTRA (PASSTHROUGH) ---
   async processQuery({
-    query,
-    scope,
-    onQueryProgressChange,
+    query, scope, onQueryProgressChange,
   }: {
     query: string
-    scope?: {
-      files: string[]
-      folders: string[]
-    }
+    scope?: { files: string[], folders: string[] }
     onQueryProgressChange?: (queryProgress: QueryProgressState) => void
-  }): Promise<
-    (Omit<SelectEmbedding, 'embedding'> & {
-      similarity: number
-    })[]
-  > {
+  }): Promise<(Omit<SelectEmbedding, 'embedding'> & { similarity: number })[]> {
     
-    // 1. ESTRATEGIA LOCAL (Se mantiene igual)
+    // A. ESTRATEGIA LOCAL
     if (scope && scope.files && scope.files.length > 0) {
-        // ... (Copia aquí tu lógica local anterior que ya funcionaba) ...
-        // (Resumida para ahorrar espacio en el chat, pero tú mantén la que tenías)
         const localResults: any[] = [];
         for (const filePath of scope.files) {
              const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -135,7 +126,7 @@ export class RAGEngine {
         return localResults;
     }
 
-    // 2. ESTRATEGIA GLOBAL CON AUTO-REPARACIÓN
+    // B. ESTRATEGIA GLOBAL
     console.log("🕸️ [Cora Plugin] Consultando Grafo Global...");
     onQueryProgressChange?.({ type: 'querying' })
 
@@ -153,52 +144,65 @@ export class RAGEngine {
 
     try {
       let data;
-      
       try {
-          // INTENTO 1: Normal
           data = await performQuery();
       } catch (firstError) {
-          console.warn("⚠️ Falló el primer intento. El servidor podría estar dormido.", firstError);
-          
+          console.warn("⚠️ Falló primer intento...", firstError);
           if (this.settings.enableAutoStartServer) {
-              // INTENTO DE RESURRECCIÓN
-              onQueryProgressChange?.({ type: 'querying' }); // Spinner simple
-              new Notice("🧠 Despertando el cerebro... (Espera unos segundos)");
-              
-              // 1. Llamar al reinicio
+              onQueryProgressChange?.({ type: 'querying' }); 
+              new Notice("🧠 Despertando el cerebro...");
               await this.restartServerCallback();
-              
-              // 2. Esperar cortesía a que Uvicorn arranque (4 segundos)
               await new Promise(resolve => setTimeout(resolve, 4000));
-              
-              console.log("🔄 Reintentando consulta...");
-              // INTENTO 2: Post-Resurrección
               data = await performQuery();
           } else {
-              throw firstError; // Si el auto-start está apagado, fallar normal.
+              throw firstError;
           }
       }
 
-      // --- PROCESAMIENTO DE RESPUESTA (Igual que antes) ---
       console.log("✅ Datos recibidos:", data);
       const results: any[] = [];
       const graphAnswer = typeof data === 'string' ? data : (data.response || "");
       
-      if (graphAnswer) {
-          results.push({
-              id: -1, model: 'lightrag-answer', path: "❤️ Respuesta de Cora (Grafo)",
-              content: graphAnswer, similarity: 1.0, mtime: Date.now(),
-              metadata: { startLine: 0, endLine: 0, fileName: "GraphAnswer", content: graphAnswer }
+      // --- CONSTRUCCIÓN DEL DOCUMENTO MAESTRO ---
+      // Combinamos la respuesta + la lista de referencias en un solo texto
+      let masterContent = graphAnswer;
+
+      if (data.references && Array.isArray(data.references)) {
+          masterContent += "\n\n--- ORIGINAL REFERENCES (DATA LAYER) ---\n";
+          data.references.forEach((ref: any, index: number) => {
+              const docName = ref.file_path || `Source ${index + 1}`;
+              // Usamos el índice original [1], [2]...
+              masterContent += `[${index + 1}] ${docName}\n`;
           });
       }
 
+      // 1. Inyectar Documento Maestro
+      if (masterContent) {
+          results.push({
+              id: -1, 
+              model: 'lightrag-master',
+              path: "🧠 Memoria del Grafo",
+              content: masterContent, // <--- Aquí va todo junto
+              similarity: 1.0, 
+              mtime: Date.now(),
+              metadata: { startLine: 0, endLine: 0, fileName: "GraphAnswer", content: masterContent }
+          });
+      }
+
+      // 2. Inyectar Referencias Desglosadas (Para la UI)
       if (data.references && Array.isArray(data.references)) {
           for (let i = 0; i < data.references.length; i++) {
               const ref = data.references[i];
-              const filePath = ref.file_path || `Ref #${i+1}`;
+              const filePath = ref.file_path || `Source #${i+1}`;
+              const docName = `[${i + 1}] ${filePath}`; 
+              
               results.push({
-                  id: -(i + 2), model: 'lightrag-ref', path: `📂 ${filePath}`,
-                  content: `[Fuente del Grafo]`, similarity: 0.5, mtime: Date.now(),
+                  id: -(i + 2), 
+                  model: 'lightrag-ref', 
+                  path: `📂 ${docName}`, 
+                  content: `[Full Content of ${docName}]:\n${ref.content || "..."}`, 
+                  similarity: 0.5, 
+                  mtime: Date.now(),
                   metadata: { startLine: 0, endLine: 0, fileName: filePath }
               });
           }
@@ -209,19 +213,12 @@ export class RAGEngine {
 
     } catch (error) {
       console.error("❌ Error definitivo:", error);
-      const errorDoc: any = {
-          id: -2, path: "⚠️ Cerebro Desconectado",
-          content: `No pude conectar con el servidor LightRAG.\nIntenté reiniciarlo pero no respondió.\n\nError: ${error.message}`,
-          similarity: 1.0, metadata: { startLine: 0, endLine: 0 }
-      };
-      return [errorDoc];
+      return [];
     }
   }
 
   private async getQueryEmbedding(query: string): Promise<number[]> {
-    if (!this.embeddingModel) {
-      throw new Error('Embedding model is not set')
-    }
+    if (!this.embeddingModel) throw new Error('Embedding model not set');
     return this.embeddingModel.getEmbedding(query)
   }
 }

@@ -27,7 +27,6 @@ const ragOptionsSchema = z.object({
  * Settings Schema
  */
 export const smartComposerSettingsSchema = z.object({
-  // Version
   version: z.literal(SETTINGS_SCHEMA_VERSION).catch(SETTINGS_SCHEMA_VERSION),
 
   providers: z.array(llmProviderSchema).catch([...DEFAULT_PROVIDERS]),
@@ -52,10 +51,8 @@ export const smartComposerSettingsSchema = z.object({
     ),
   embeddingModelId: z.string().catch(DEFAULT_EMBEDDING_MODELS[0].id), 
 
-  // System Prompt
   systemPrompt: z.string().catch(''),
 
-  // RAG Options
   ragOptions: ragOptionsSchema.catch({
     chunkSize: 1000,
     thresholdTokens: 8192,
@@ -65,7 +62,6 @@ export const smartComposerSettingsSchema = z.object({
     includePatterns: [],
   }),
 
-  // MCP configuration
   mcp: z
     .object({
       servers: z.array(mcpServerConfigSchema).catch([]),
@@ -74,7 +70,6 @@ export const smartComposerSettingsSchema = z.object({
       servers: [],
     }),
 
-  // Chat options
   chatOptions: z
     .object({
       includeCurrentFileContent: z.boolean(),
@@ -87,21 +82,21 @@ export const smartComposerSettingsSchema = z.object({
       maxAutoIterations: 1,
     }),
 
-  // --- CORA MOD: NUEVAS OPCIONES PARA LIGHTRAG ---
+  // --- CORA MOD: NUEVAS OPCIONES ---
   enableAutoStartServer: z.boolean().catch(false),
   lightRagCommand: z.string().catch('lightrag-server'),
   lightRagWorkDir: z.string().catch(''),
-  // NUEVO CAMPO:
+  lightRagModelId: z.string().optional(),
+  // CORRECCIÓN: Default a English para público global
   lightRagSummaryLanguage: z.string().catch('English'), 
-    // NUEVO CAMPO: ID del modelo específico para el Grafo
-  lightRagModelId: z.string().optional(), 
-  // ----------------------------------------------
+  lightRagShowCitations: z.boolean().catch(true),
+  // ------------------------------
 })
 
 export type SmartComposerSettings = z.infer<typeof smartComposerSettingsSchema>
 
 /**
- * Default Settings Constant (Fully Populated to avoid TS2740)
+ * Default Settings Constant
  */
 export const DEFAULT_SETTINGS: SmartComposerSettings = {
   version: SETTINGS_SCHEMA_VERSION,
@@ -138,9 +133,9 @@ export const DEFAULT_SETTINGS: SmartComposerSettings = {
   enableAutoStartServer: false,
   lightRagCommand: 'lightrag-server',
   lightRagWorkDir: '',
-  // NUEVO DEFAULT:
-  lightRagSummaryLanguage: 'English',
-  lightRagModelId: '', // Por defecto vacío (usaremos lógica fallback)
+  lightRagModelId: '',
+  lightRagSummaryLanguage: 'English', // Default neutro
+  lightRagShowCitations: true,
 }
 
 export type SettingMigration = {
