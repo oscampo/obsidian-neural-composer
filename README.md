@@ -6,7 +6,7 @@ It upgrades your note-taking experience by connecting Obsidian to a local **Ligh
 
 > **Forked from:** [Smart Composer](https://github.com/glowingjade/obsidian-smart-composer)
 > 
-> **Developed by:** Oscar Campo & Cora (AI Co-Pilot)
+> **Developed by:** Oscar Campo & Cora (AI)
 
 ## ✨ New Features (v1.0.0)
 

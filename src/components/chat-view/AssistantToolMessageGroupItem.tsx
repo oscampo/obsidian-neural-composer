@@ -1,3 +1,4 @@
+import { useState } from 'react' // <--- Importante: useState
 import {
   AssistantToolMessageGroup,
   ChatMessage,
@@ -14,9 +15,10 @@ export type AssistantToolMessageGroupItemProps = {
   messages: AssistantToolMessageGroup
   contextMessages: ChatMessage[]
   conversationId: string
-  isApplying: boolean // TODO: isApplying should be a boolean for each assistant message
+  isApplying: boolean
   onApply: (blockToApply: string, chatMessages: ChatMessage[]) => void
   onToolMessageUpdate: (message: ChatToolMessage) => void
+  onAssistantMessageUpdate: (messageId: string, newContent: string) => void
 }
 
 export default function AssistantToolMessageGroupItem({
@@ -26,7 +28,19 @@ export default function AssistantToolMessageGroupItem({
   isApplying,
   onApply,
   onToolMessageUpdate,
+  onAssistantMessageUpdate,
 }: AssistantToolMessageGroupItemProps) {
+  
+  // --- CORA MOD: ESTADO DE EDICIÓN LOCAL ---
+  const [isEditing, setIsEditing] = useState(false)
+
+  // Función para guardar y cerrar edición
+  const handleContentUpdate = (messageId: string, newContent: string) => {
+    onAssistantMessageUpdate(messageId, newContent)
+    setIsEditing(false) // Cerrar al guardar
+  }
+  // -----------------------------------------
+
   return (
     <div className="smtcmp-assistant-tool-message-group">
       {messages.map((message) =>
@@ -46,6 +60,10 @@ export default function AssistantToolMessageGroupItem({
                 contextMessages={contextMessages}
                 handleApply={onApply}
                 isApplying={isApplying}
+                // --- CORA MOD: Conectamos ---
+                onContentUpdate={(newContent) => handleContentUpdate(message.id, newContent)}
+                isEditingMode={isEditing} // Le decimos al hijo si debe mostrar el textarea
+                onCancelEdit={() => setIsEditing(false)} // Para el botón cancelar
               />
             </div>
           ) : null
@@ -60,7 +78,12 @@ export default function AssistantToolMessageGroupItem({
         ),
       )}
       {messages.length > 0 && (
-        <AssistantToolMessageGroupActions messages={messages} />
+        <AssistantToolMessageGroupActions 
+            messages={messages} 
+            // --- CORA MOD: Conectar el botón ---
+            onToggleEdit={() => setIsEditing(!isEditing)}
+            isEditing={isEditing}
+        />
       )}
     </div>
   )

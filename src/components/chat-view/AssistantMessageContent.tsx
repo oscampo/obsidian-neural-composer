@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo } from 'react'
+import { Check } from 'lucide-react'
+import React, { useCallback, useMemo, useState, useEffect } from 'react'
 
 import { ChatAssistantMessage, ChatMessage } from '../../types/chat'
 import {
@@ -16,12 +17,26 @@ export default function AssistantMessageContent({
   contextMessages,
   handleApply,
   isApplying,
+  onContentUpdate,
+  // --- CORA MOD: Props nuevas ---
+  isEditingMode = false,
+  onCancelEdit,
 }: {
   content: ChatAssistantMessage['content']
   contextMessages: ChatMessage[]
   handleApply: (blockToApply: string, chatMessages: ChatMessage[]) => void
   isApplying: boolean
+  onContentUpdate?: (newContent: string) => void
+  isEditingMode?: boolean
+  onCancelEdit?: () => void
 }) {
+  const [editedContent, setEditedContent] = useState(content)
+
+  // Sincronizar
+  useEffect(() => {
+    setEditedContent(content)
+  }, [content])
+
   const onApply = useCallback(
     (blockToApply: string) => {
       handleApply(blockToApply, contextMessages)
@@ -29,6 +44,40 @@ export default function AssistantMessageContent({
     [handleApply, contextMessages],
   )
 
+  // --- MODO EDICIÓN ACTIVADO POR EL PADRE ---
+  if (isEditingMode && onContentUpdate) {
+    return (
+      <div className="smtcmp-edit-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <textarea
+          value={editedContent}
+          onChange={(e) => setEditedContent(e.target.value)}
+          style={{
+            width: '100%',
+            minHeight: '150px',
+            padding: '10px',
+            borderRadius: '4px',
+            border: '1px solid var(--interactive-accent)',
+            backgroundColor: 'var(--background-primary)',
+            color: 'var(--text-normal)',
+            fontFamily: 'var(--font-monospace)',
+            resize: 'vertical',
+            fontSize: '0.9em'
+          }}
+          autoFocus
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          <button onClick={() => { setEditedContent(content); if(onCancelEdit) onCancelEdit(); }}>
+             Cancel
+          </button>
+          <button className="mod-cta" onClick={() => onContentUpdate(editedContent)}>
+             <Check size={14} style={{marginRight: '4px'}}/> Save
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // --- MODO LECTURA ---
   return (
     <AssistantTextRenderer onApply={onApply} isApplying={isApplying}>
       {content}

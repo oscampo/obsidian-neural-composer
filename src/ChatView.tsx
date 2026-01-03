@@ -35,11 +35,11 @@ export class ChatView extends ItemView {
   }
 
   getIcon() {
-    return 'wand-sparkles'
+    return 'brain-circuit'
   }
 
   getDisplayText() {
-    return 'Smart composer chat'
+    return 'Neural Composer Chat'
   }
 
   async onOpen() {

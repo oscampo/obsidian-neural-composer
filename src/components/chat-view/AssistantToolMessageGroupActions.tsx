@@ -1,5 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Check, CopyIcon } from 'lucide-react'
+import { Check, CopyIcon, Pencil } from 'lucide-react' // <--- Agregamos Pencil
 import { useMemo, useState } from 'react'
 
 import {
@@ -45,6 +45,7 @@ function CopyButton({ messages }: { messages: AssistantToolMessageGroup }) {
           <button
             onClick={copied ? undefined : handleCopy}
             className="clickable-icon"
+            aria-label="Copy"
           >
             {copied ? <Check size={12} /> : <CopyIcon size={12} />}
           </button>
@@ -58,6 +59,32 @@ function CopyButton({ messages }: { messages: AssistantToolMessageGroup }) {
     </Tooltip.Provider>
   )
 }
+
+// --- CORA MOD: BOTÓN DE EDICIÓN ---
+function EditButton({ isEditing, onToggleEdit }: { isEditing: boolean, onToggleEdit: () => void }) {
+  return (
+    <Tooltip.Provider delayDuration={0}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            onClick={onToggleEdit}
+            className={`clickable-icon ${isEditing ? 'is-active' : ''}`}
+            aria-label="Edit"
+            style={{ color: isEditing ? 'var(--interactive-accent)' : undefined }}
+          >
+            <Pencil size={12} />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content className="smtcmp-tooltip-content">
+            {isEditing ? 'Cancel editing' : 'Edit message'}
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  )
+}
+// ----------------------------------
 
 function LLMResponseInfoButton({
   messages,
@@ -82,7 +109,6 @@ function LLMResponseInfoButton({
     }, null)
   }, [messages])
 
-  // TODO: Handle multiple models in the same message group
   const model = useMemo<ChatModel | undefined>(() => {
     const assistantMessageWithModel = messages.find(
       (message): message is ChatAssistantMessage =>
@@ -125,12 +151,21 @@ function LLMResponseInfoButton({
 
 export default function AssistantToolMessageGroupActions({
   messages,
+  // --- CORA MOD: Recibimos props de edición ---
+  onToggleEdit,
+  isEditing,
 }: {
   messages: AssistantToolMessageGroup
+  onToggleEdit?: () => void
+  isEditing?: boolean
 }) {
   return (
     <div className="smtcmp-assistant-message-actions">
       <LLMResponseInfoButton messages={messages} />
+      {/* Botón de Editar (Solo si la función existe) */}
+      {onToggleEdit && (
+        <EditButton isEditing={!!isEditing} onToggleEdit={onToggleEdit} />
+      )}
       <CopyButton messages={messages} />
     </div>
   )

@@ -54,7 +54,7 @@ export class RAGEngine {
   // --- 1. INGESTA TEXTO ---
   async insertDocument(content: string, description?: string): Promise<boolean> {
     const safeName = description && description.trim() ? description : `Note_${Date.now()}.md`;
-    console.log(`🕸️ [Cora Plugin] Ingestando Texto: ${safeName}...`);
+    console.log(`🕸️ Ingesting Text: ${safeName}...`);
     try {
       const response = await fetch("http://localhost:9621/documents/texts", {
         method: "POST",
@@ -65,18 +65,18 @@ export class RAGEngine {
         const errText = await response.text();
         throw new Error(`Error ${response.status}: ${errText}`);
       }
-      console.log("✅ [Cora Plugin] Ingesta de texto exitosa.");
+      console.log("✅ Text input successful.");
       return true;
     } catch (error) {
-      console.error("❌ Error en ingesta texto:", error);
-      new Notice(`Error al guardar en el Grafo: ${error.message}`);
+      console.error("❌ Error in input of text:", error);
+      new Notice(`Error saving to the graph: ${error.message}`);
       return false;
     }
   }
 
   // --- 2. INGESTA BINARIA ---
   async uploadDocument(file: TFile): Promise<boolean> {
-    console.log(`🕸️ [Cora Plugin] Subiendo binario: ${file.name}...`);
+    console.log(`🕸️ Uploading binary: ${file.name}...`);
     try {
       const arrayBuffer = await this.app.vault.readBinary(file);
       const blob = new Blob([arrayBuffer]);
@@ -91,11 +91,11 @@ export class RAGEngine {
         const errText = await response.text();
         throw new Error(`Error ${response.status}: ${errText}`);
       }
-      console.log("✅ [Cora Plugin] Subida binaria exitosa.");
+      console.log("✅ Binary upload successful.");
       return true;
     } catch (error) {
-      console.error("❌ Error subiendo archivo:", error);
-      new Notice(`Error al subir ${file.name}: ${error.message}`);
+      console.error("❌ Error uploading file:", error);
+      new Notice(`Error uploading ${file.name}: ${error.message}`);
       return false;
     }
   }
@@ -127,7 +127,7 @@ export class RAGEngine {
     }
 
     // B. ESTRATEGIA GLOBAL
-    console.log("🕸️ [Cora Plugin] Consultando Grafo Global...");
+    console.log("🕸️ Consulting Global Graph...");
     onQueryProgressChange?.({ type: 'querying' })
 
     const performQuery = async () => {
@@ -147,10 +147,10 @@ export class RAGEngine {
       try {
           data = await performQuery();
       } catch (firstError) {
-          console.warn("⚠️ Falló primer intento...", firstError);
+          console.warn("⚠️ First attempt failed...", firstError);
           if (this.settings.enableAutoStartServer) {
               onQueryProgressChange?.({ type: 'querying' }); 
-              new Notice("🧠 Despertando el cerebro...");
+              new Notice("🧠 Waking up the system...");
               await this.restartServerCallback();
               await new Promise(resolve => setTimeout(resolve, 4000));
               data = await performQuery();
@@ -159,7 +159,7 @@ export class RAGEngine {
           }
       }
 
-      console.log("✅ Datos recibidos:", data);
+      console.log("✅ Data received:", data);
       const results: any[] = [];
       const graphAnswer = typeof data === 'string' ? data : (data.response || "");
       
@@ -181,7 +181,7 @@ export class RAGEngine {
           results.push({
               id: -1, 
               model: 'lightrag-master',
-              path: "🧠 Memoria del Grafo",
+              path: "🧠 Graph's Memory",
               content: masterContent, // <--- Aquí va todo junto
               similarity: 1.0, 
               mtime: Date.now(),
@@ -212,7 +212,7 @@ export class RAGEngine {
       return results;
 
     } catch (error) {
-      console.error("❌ Error definitivo:", error);
+      console.error("❌ Fatal error:", error);
       return [];
     }
   }

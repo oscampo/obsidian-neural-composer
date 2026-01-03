@@ -397,6 +397,22 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
     ],
   )
 
+// --- CORA MOD: FUNCIÓN PARA ACTUALIZAR MENSAJES DE ASISTENTE ---
+  const handleAssistantMessageUpdate = useCallback(
+    (messageId: string, newContent: string) => {
+      setChatMessages((prevMessages) => 
+        prevMessages.map((msg) => {
+          if (msg.id === messageId && msg.role === 'assistant') {
+            return { ...msg, content: newContent };
+          }
+          return msg;
+        })
+      );
+    },
+    [setChatMessages]
+  );
+  // ---------------------------------------------------------------
+
   const showContinueResponseButton = useMemo(() => {
     /**
      * Display the button to continue response when:
@@ -678,6 +694,9 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
               isApplying={applyMutation.isPending}
               onApply={handleApply}
               onToolMessageUpdate={handleToolMessageUpdate}
+              // --- CORA MOD: ¡ESTA LÍNEA ES LA QUE FALTABA! ---
+              onAssistantMessageUpdate={handleAssistantMessageUpdate}
+              // ------------------------------------------------
             />
           ),
         )}
