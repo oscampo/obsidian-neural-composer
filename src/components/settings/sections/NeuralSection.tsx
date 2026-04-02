@@ -71,6 +71,18 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
           }),
       );
 
+    new Setting(container)
+      .setName(`${BACKEND_NAME} server URL`)
+      .setDesc('Base URL of the LightRAG server. Change this to connect to a remote server.')
+      .addText((text) =>
+        text
+          .setPlaceholder('http://localhost:9621')
+          .setValue(plugin.settings.lightRagServerUrl)
+          .onChange((value) => {
+            void plugin.setSettings({ ...plugin.settings, lightRagServerUrl: value });
+          }),
+      );
+
     // 3. Graph Logic Model
     new Setting(container)
       .setName(`Graph logic model (${TERM_LLM})`)

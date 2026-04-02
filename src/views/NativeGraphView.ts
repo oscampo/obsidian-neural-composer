@@ -663,7 +663,7 @@ showNodeDetails(node: Partial<GraphNode>) {
       new Notice(`Updating node "${oldName}"...`);
       try {
           const response = await requestUrl({
-              url: "http://localhost:9621/graph/entity/edit",
+              url: `${this.plugin.settings.lightRagServerUrl}/graph/entity/edit`,
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ 
@@ -796,7 +796,7 @@ showNodeDetails(node: Partial<GraphNode>) {
           new Notice(`Merging into ${targetNode}...`);
           try {
               const response = await requestUrl({
-                  url: "http://localhost:9621/graph/entities/merge",
+                  url: `${this.plugin.settings.lightRagServerUrl}/graph/entities/merge`,
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ "entity_to_change_into": targetNode, "entities_to_change": sourceNodes })
@@ -824,7 +824,7 @@ showNodeDetails(node: Partial<GraphNode>) {
           try {
               for (const entity of targets) {
                   await requestUrl({
-                      url: "http://localhost:9621/documents/delete_entity",
+                      url: `${this.plugin.settings.lightRagServerUrl}/documents/delete_entity`,
                       method: "DELETE",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ "entity_name": entity })
@@ -879,13 +879,13 @@ showNodeDetails(node: Partial<GraphNode>) {
 
       new CreateRelationModal(
           this.app, 
-          targets, 
+          targets,
           // Acción: Enviar a la API
           async (data) => {
               for (const target of data.targets) {
                   try {
                       await requestUrl({
-                          url: "http://localhost:9621/graph/relation/create",
+                          url: `${this.plugin.settings.lightRagServerUrl}/graph/relation/create`,
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({

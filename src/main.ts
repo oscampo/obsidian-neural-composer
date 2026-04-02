@@ -255,7 +255,7 @@ this.app.workspace.onLayoutReady(() => {
     while (isBusy) {
         try {
             const response = await requestUrl({
-                url: "http://localhost:9621/documents/pipeline_status",
+                url: `${this.settings.lightRagServerUrl}/documents/pipeline_status`,
                 method: "GET"
             });
             
@@ -428,7 +428,7 @@ onunload() {
         
         envContent += `WORKING_DIR=${workDir}\n`;
         envContent += `HOST=0.0.0.0\n`;
-        envContent += `PORT=9621\n`;
+        envContent += `PORT=${new URL(this.settings.lightRagServerUrl).port || '9621'}\n`;
         envContent += `SUMMARY_LANGUAGE=${this.settings.lightRagSummaryLanguage || 'English'}\n`;
         
         // --- TUNING VARS ---
@@ -608,7 +608,7 @@ async startLightRagServer() {
 
     this.updateEnvFile();
 
-    const isAlive = await this.isPortInUse(9621);
+    const isAlive = await this.isPortInUse(parseInt(new URL(this.settings.lightRagServerUrl).port) || 9621);
     if (isAlive) {
         this.updateStatusUI('online'); // Si ya está vivo, lo ponemos verde
         return;
@@ -632,7 +632,7 @@ async startLightRagServer() {
         // ------------------------------------------------
 
         // Usamos las variables sanitizadas en el comando y argumentos
-        this.serverProcess = spawn(safeCommand, ['--port', '9621', '--working-dir', safeWorkDir, '--workers', '1'], {
+        this.serverProcess = spawn(safeCommand, ['--port', `${new URL(this.settings.lightRagServerUrl).port || '9621'}`, '--working-dir', safeWorkDir, '--workers', '1'], {
             cwd: workDir, // cwd usa la ruta original (Node la maneja bien)
             shell: true,
             env: { ...envVars, PYTHONIOENCODING: 'utf-8', FORCE_COLOR: '1' }
@@ -672,9 +672,9 @@ async startLightRagServer() {
 
         // --- DETECCIÓN REACTIVA (LINTER SAFE) ---
         void (async () => {
-            for (let i = 0; i < 15; i++) { 
+            for (let i = 0; i < 15; i++) {
                 await new Promise(r => setTimeout(r, 1000));
-                const alive = await this.isPortInUse(9621);
+                const alive = await this.isPortInUse(parseInt(new URL(this.settings.lightRagServerUrl).port) || 9621);
                 if (alive) {
                     this.updateStatusUI('online'); 
                     new Notice(`${BACKEND_NAME} activated`);
@@ -964,7 +964,7 @@ private async checkAndUpdateStatus() {
 
       try {
           const response = await requestUrl({
-              url: "http://localhost:9621/health",
+              url: `${this.settings.lightRagServerUrl}/health`,
               method: "GET",
               throw: false
           });
@@ -999,7 +999,7 @@ private async checkAndUpdateStatus() {
   }
 
   private async handleStatusBarClick() {
-      const isAlive = await this.isPortInUse(9621);
+      const isAlive = await this.isPortInUse(parseInt(new URL(this.settings.lightRagServerUrl).port) || 9621);
       if (!isAlive) {
           new Notice(`Starting ${BACKEND_NAME} from status bar...`);
           void this.startLightRagServer();
