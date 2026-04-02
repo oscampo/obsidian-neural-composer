@@ -56,18 +56,29 @@ export default class NeuralComposerPlugin extends Plugin {
   mcpManager: McpManager | null = null;
   dbManager: DatabaseManager | null = null;
   ragEngine: RAGEngine | null = null;
-  
+
   private dbManagerInitPromise: Promise<DatabaseManager> | null = null;
   private ragEngineInitPromise: Promise<RAGEngine> | null = null;
-  
+
   private timeoutIds: ReturnType<typeof setTimeout>[] = [];
   private serverProcess: ChildProcess | null = null;
-  private lastErrorTime: number = 0; 
+  private lastErrorTime: number = 0;
 
   // --- STATUS BAR PROPERTIES ---
   private statusBarEl: HTMLElement;
   private statusDotEl: HTMLElement;
   private heartbeatInterval: number;
+
+  /** Returns true if the configured server URL points to a remote host (not localhost). */
+  isRemoteServer(): boolean {
+    try {
+      const url = new URL(this.settings.lightRagServerUrl);
+      const host = url.hostname;
+      return host !== 'localhost' && host !== '127.0.0.1' && host !== '::1';
+    } catch {
+      return false;
+    }
+  }
 
   async onload() {
     await this.loadSettings();
@@ -230,7 +241,7 @@ export default class NeuralComposerPlugin extends Plugin {
 
     // --- AGGRESSIVE AUTO-START ---
 this.app.workspace.onLayoutReady(() => {
-        if (this.settings.enableAutoStartServer) {
+        if (this.settings.enableAutoStartServer && !this.isRemoteServer()) {
             void this.startLightRagServer();
         }
         // --- LATIDO LEGAL Y SEGURO ---
@@ -598,6 +609,12 @@ onunload() {
   }
 
 async startLightRagServer() {
+    if (this.isRemoteServer()) {
+        // Remote server — skip local process management, just check health
+        void this.checkAndUpdateStatus();
+        return;
+    }
+
     const command = this.settings.lightRagCommand;
     const workDir = this.settings.lightRagWorkDir;
 
@@ -956,8 +973,9 @@ async activateChatView(chatProps?: ChatProps, openNewChat = false) {
   }
 
 private async checkAndUpdateStatus() {
-      // Si el proceso no existe y no está el auto-start, está offline
-      if (!this.settings.enableAutoStartServer && !this.serverProcess) {
+      // Remote server: always check health via HTTP (no local process to check)
+      // Local server: if auto-start is off and no process, it's offline
+      if (!this.isRemoteServer() && !this.settings.enableAutoStartServer && !this.serverProcess) {
           this.updateStatusUI('offline');
           return;
       }
@@ -999,6 +1017,11 @@ private async checkAndUpdateStatus() {
   }
 
   private async handleStatusBarClick() {
+      if (this.isRemoteServer()) {
+          new Notice(`Checking remote ${BACKEND_NAME} server...`);
+          void this.checkAndUpdateStatus();
+          return;
+      }
       const isAlive = await this.isPortInUse(parseInt(new URL(this.settings.lightRagServerUrl).port) || 9621);
       if (!isAlive) {
           new Notice(`Starting ${BACKEND_NAME} from status bar...`);

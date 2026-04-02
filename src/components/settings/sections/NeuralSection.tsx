@@ -71,9 +71,15 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
           }),
       );
 
+    const isRemote = plugin.isRemoteServer();
+
     new Setting(container)
       .setName(`${BACKEND_NAME} server URL`)
-      .setDesc('Base URL of the LightRAG server. Change this to connect to a remote server.')
+      .setDesc(
+        isRemote
+          ? 'Connected to a remote server. Auto-start and local process management are disabled.'
+          : 'Base URL of the LightRAG server. Change this to connect to a remote server (e.g., http://192.168.1.100:9621).'
+      )
       .addText((text) =>
         text
           .setPlaceholder('http://localhost:9621')

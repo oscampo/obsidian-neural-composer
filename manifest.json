@@ -1,7 +1,7 @@
 {
   "id": "neural-composer",
   "name": "Neural Composer",
-  "version": "1.1.7",
+  "version": "1.2.1",
   "minAppVersion": "1.0.0",
   "description": "Local Graph RAG powered by LightRAG. Chat with your notes using deep knowledge graph connections.",
   "author": "Oscar Campo",
