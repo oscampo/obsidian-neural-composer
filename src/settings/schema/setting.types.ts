@@ -31,16 +31,22 @@ export const NeuralComposerSettingsSchema = z.object({
   version: z.literal(SETTINGS_SCHEMA_VERSION).catch(SETTINGS_SCHEMA_VERSION),
   providers: z.array(llmProviderSchema).catch([...DEFAULT_PROVIDERS]),
   chatModels: z.array(chatModelSchema).catch([...DEFAULT_CHAT_MODELS]),
-  embeddingModels: z.array(embeddingModelSchema).catch([...DEFAULT_EMBEDDING_MODELS]),
+  embeddingModels: z
+    .array(embeddingModelSchema)
+    .catch([...DEFAULT_EMBEDDING_MODELS]),
 
-  chatModelId: z.string().catch(
-    DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_CHAT_MODEL_ID)?.id ??
-      DEFAULT_CHAT_MODELS[0].id,
-  ),
-  applyModelId: z.string().catch(
-    DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_APPLY_MODEL_ID)?.id ??
-      DEFAULT_CHAT_MODELS[0].id,
-  ),
+  chatModelId: z
+    .string()
+    .catch(
+      DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_CHAT_MODEL_ID)?.id ??
+        DEFAULT_CHAT_MODELS[0].id,
+    ),
+  applyModelId: z
+    .string()
+    .catch(
+      DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_APPLY_MODEL_ID)?.id ??
+        DEFAULT_CHAT_MODELS[0].id,
+    ),
   embeddingModelId: z.string().catch(DEFAULT_EMBEDDING_MODELS[0].id),
 
   systemPrompt: z.string().catch(''),
@@ -54,37 +60,44 @@ export const NeuralComposerSettingsSchema = z.object({
     includePatterns: [],
   }),
 
-  mcp: z.object({
-    servers: z.array(mcpServerConfigSchema).catch([]),
-  }).catch({
-    servers: [],
-  }),
+  mcp: z
+    .object({
+      servers: z.array(mcpServerConfigSchema).catch([]),
+    })
+    .catch({
+      servers: [],
+    }),
 
-  chatOptions: z.object({
-    includeCurrentFileContent: z.boolean(),
-    enableTools: z.boolean(),
-    maxAutoIterations: z.number(),
-  }).catch({
-    includeCurrentFileContent: true,
-    enableTools: true,
-    maxAutoIterations: 1,
-  }),
+  chatOptions: z
+    .object({
+      includeCurrentFileContent: z.boolean(),
+      enableTools: z.boolean(),
+      maxAutoIterations: z.number(),
+    })
+    .catch({
+      includeCurrentFileContent: true,
+      enableTools: true,
+      maxAutoIterations: 1,
+    }),
 
   // --- NEURAL COMPOSER (CORE) ---
+  lightRagUseRemote: z.boolean().catch(false),
+  lightRagServerUrl: z.string().catch('http://localhost:9621'),
   enableAutoStartServer: z.boolean().catch(false),
   lightRagCommand: z.string().catch('lightrag-server'),
   lightRagWorkDir: z.string().catch(''),
-  lightRagServerUrl: z.string().catch('http://localhost:9621'),
   lightRagModelId: z.string().optional().catch(''),
-  lightRagSummaryLanguage: z.string().catch('English'), 
+  lightRagSummaryLanguage: z.string().catch('English'),
   lightRagShowCitations: z.boolean().catch(true),
-  lightRagQueryMode: z.enum(['local', 'global', 'hybrid', 'naive', 'mix', 'bypass']).catch('mix'),
-  lightRagEmbeddingModelId: z.string().optional().catch(''), 
+  lightRagQueryMode: z
+    .enum(['local', 'global', 'hybrid', 'naive', 'mix', 'bypass'])
+    .catch('mix'),
+  lightRagEmbeddingModelId: z.string().optional().catch(''),
 
   // --- RERANKING ---
-  lightRagRerankBinding: z.string().catch(''), 
-  lightRagRerankModel: z.string().catch(''),   
-  lightRagRerankApiKey: z.string().catch(''),  
+  lightRagRerankBinding: z.string().catch(''),
+  lightRagRerankModel: z.string().catch(''),
+  lightRagRerankApiKey: z.string().catch(''),
   lightRagRerankHost: z.string().catch(''),
   lightRagRerankBindingType: z.string().catch(''),
 
@@ -92,13 +105,13 @@ export const NeuralComposerSettingsSchema = z.object({
   lightRagEntityTypes: z.string().catch(''),
   lightRagOntologyFolder: z.string().catch(''),
   // NUEVO INTERRUPTOR:
-  useCustomEntityTypes: z.boolean().catch(false), 
+  useCustomEntityTypes: z.boolean().catch(false),
 
   graphViewMode: z.enum(['2d', '3d']).catch('2d'),
 
-    // --- NUEVO CAMPO: CONFIGURACIÓN LIBRE ---
-  lightRagCustomEnv: z.string().catch(''), 
-  
+  // --- NUEVO CAMPO: CONFIGURACIÓN LIBRE ---
+  lightRagCustomEnv: z.string().catch(''),
+
   // --- PERFORMANCE TUNING (NUEVO) ---
   lightRagMaxAsync: z.number().catch(4),
   lightRagMaxParallelInsert: z.number().catch(1),
@@ -107,8 +120,9 @@ export const NeuralComposerSettingsSchema = z.object({
   // ----------------------------------
 })
 
-
-export type NeuralComposerSettings = z.infer<typeof NeuralComposerSettingsSchema>
+export type NeuralComposerSettings = z.infer<
+  typeof NeuralComposerSettingsSchema
+>
 
 /**
  * Default Settings Constant
@@ -119,13 +133,17 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
   providers: [...DEFAULT_PROVIDERS],
   chatModels: [...DEFAULT_CHAT_MODELS],
   embeddingModels: [...DEFAULT_EMBEDDING_MODELS],
-  
-  chatModelId: DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_CHAT_MODEL_ID)?.id ?? DEFAULT_CHAT_MODELS[0].id,
-  applyModelId: DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_APPLY_MODEL_ID)?.id ?? DEFAULT_CHAT_MODELS[0].id,
+
+  chatModelId:
+    DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_CHAT_MODEL_ID)?.id ??
+    DEFAULT_CHAT_MODELS[0].id,
+  applyModelId:
+    DEFAULT_CHAT_MODELS.find((v) => v.id === DEFAULT_APPLY_MODEL_ID)?.id ??
+    DEFAULT_CHAT_MODELS[0].id,
   embeddingModelId: DEFAULT_EMBEDDING_MODELS[0].id,
-  
+
   systemPrompt: '',
-  
+
   ragOptions: {
     chunkSize: 1000,
     thresholdTokens: 8192,
@@ -133,11 +151,10 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
     limit: 10,
     excludePatterns: [],
     includePatterns: [],
-    
   },
-  
+
   mcp: { servers: [] },
-  
+
   chatOptions: {
     includeCurrentFileContent: true,
     enableTools: true,
@@ -145,15 +162,16 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
   },
 
   // --- NEURAL DEFAULTS ---
+  lightRagUseRemote: false,
+  lightRagServerUrl: 'http://localhost:9621',
   enableAutoStartServer: false,
   lightRagCommand: 'lightrag-server',
   lightRagWorkDir: '',
-  lightRagServerUrl: 'http://localhost:9621',
   lightRagModelId: '',
   lightRagSummaryLanguage: 'English',
   lightRagShowCitations: true,
   lightRagQueryMode: 'mix',
-  lightRagEmbeddingModelId: '', 
+  lightRagEmbeddingModelId: '',
 
   // --- RERANK DEFAULTS ---
   lightRagRerankBinding: '',
@@ -164,10 +182,11 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
 
   // --- ONTOLOGY DEFAULTS ---
   // Ponemos los defaults estándar de LightRAG para que el usuario tenga un punto de partida
-  lightRagEntityTypes: 'Person, Creature, Organization, Location, Event, Concept, Method, Content, Data, Artifact, NaturalObject', 
-  lightRagOntologyFolder: '', 
+  lightRagEntityTypes:
+    'Person, Creature, Organization, Location, Event, Concept, Method, Content, Data, Artifact, NaturalObject',
+  lightRagOntologyFolder: '',
   // NUEVO DEFAULT:
-  useCustomEntityTypes: false, 
+  useCustomEntityTypes: false,
   graphViewMode: '2d', // Default seguro para todos
   // DEFAULTS NUEVOS
   lightRagMaxAsync: 4,
@@ -175,10 +194,9 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
   lightRagChunkSize: 1200,
   lightRagChunkOverlap: 100,
 
-    // DEFAULT NUEVO
-  lightRagCustomEnv: '', 
+  // DEFAULT NUEVO
+  lightRagCustomEnv: '',
 }
-
 
 export type SettingMigration = {
   fromVersion: number
