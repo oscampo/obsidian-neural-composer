@@ -1953,6 +1953,7 @@ button.nrlcmp-chat-input-model-select {
     overflow: hidden;
     position: relative;
     background-color: var(--background-primary);
+    --nrlcmp-graph-label-color: var(--text-normal);
 }
 
 
@@ -2119,13 +2120,13 @@ button.nrlcmp-chat-input-model-select {
     align-items: center;
     border-radius: 8px 8px 0 0;
     background-color: var(--interactive-accent);
+    transition: background-color 0.2s;
 }
 
 
 .nrlcmp-details-type {
     font-weight: 700;
-    /*color: var(--text-on-accent);*/ /* Texto legible sobre el color de acento */
-    color: var(--text-muted);
+    color: var(--text-on-accent);
     font-size: 0.85em;
     letter-spacing: 0.05em;
 }

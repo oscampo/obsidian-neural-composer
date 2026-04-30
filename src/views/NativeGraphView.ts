@@ -154,6 +154,7 @@ export class NativeGraphView extends ItemView {
   private sortAscending: boolean = false;
   private allNodes: GraphNode[] = [];
   private filteredNodes: GraphNode[] = [];
+  private focusedNode: string | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: NeuralComposerPlugin) {
     super(leaf);
@@ -373,35 +374,47 @@ export class NativeGraphView extends ItemView {
 
       void this.sigmaInstance.getCamera().animate({ x: targetX, y: targetY, ratio: 0.15, angle: 0 }, { duration: 1500, easing: 'cubicInOut' });
 
-      // Reset styles
-      this.graph.forEachNode(n => { 
-          this.graph?.setNodeAttribute(n, 'color', '#444'); 
-          this.graph?.setNodeAttribute(n, 'label', ''); 
-          this.graph?.setNodeAttribute(n, 'zIndex', 0); 
+      // All nodes keep their base_color
+      this.graph.forEachNode(n => {
+          const a = this.graph?.getNodeAttributes(n);
+          this.graph?.setNodeAttribute(n, 'color', a?.base_color || '#00d4ff');
+          this.graph?.setNodeAttribute(n, 'label', '');
+          this.graph?.setNodeAttribute(n, 'zIndex', 0);
       });
       this.graph.forEachEdge(e => this.graph?.setEdgeAttribute(e, 'hidden', true));
 
-      // Highlight neighbors
+      // Neighbors keep base_color, get label
       this.graph.forEachNeighbor(nodeId, n => {
-          this.graph?.setNodeAttribute(n, 'color', '#ff0055');
-          this.graph?.setNodeAttribute(n, 'label', n); 
+          const a = this.graph?.getNodeAttributes(n);
+          this.graph?.setNodeAttribute(n, 'color', a?.base_color || '#00d4ff');
+          this.graph?.setNodeAttribute(n, 'label', n);
           this.graph?.setNodeAttribute(n, 'zIndex', 1);
       });
+
+      // Edges turn red
       this.graph.forEachEdge(nodeId, e => {
           this.graph?.setEdgeAttribute(e, 'hidden', false);
           this.graph?.setEdgeAttribute(e, 'color', '#ff0055');
           this.graph?.setEdgeAttribute(e, 'size', 2);
       });
 
-      // Highlight target
-      this.graph.setNodeAttribute(nodeId, 'color', '#ffffff');
+      // Focused node — keep base_color, persist shadow ring
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sigma = this.sigmaInstance as any;
+      if (this.focusedNode) sigma.highlightedNodes.delete(this.focusedNode);
+      this.focusedNode = nodeId;
+      sigma.highlightedNodes.add(nodeId);
+      sigma.scheduleHighlightedNodesRender();
+
+      this.graph.setNodeAttribute(nodeId, 'color', attrs.base_color || '#00d4ff');
       this.graph.setNodeAttribute(nodeId, 'label', nodeId);
+      this.graph.setNodeAttribute(nodeId, 'zIndex', 10);
       this.graph.setNodeAttribute(nodeId, 'size', (visualData?.size || attrs.size || 5) * 1.5);
 
-      this.showNodeDetails({ 
-          id: nodeId, 
-          ...attrs, 
-          type: attrs.node_type || attrs.type 
+      this.showNodeDetails({
+          id: nodeId,
+          ...attrs,
+          type: attrs.node_type || attrs.type
       } as unknown as GraphNode);
   }
 
@@ -410,13 +423,28 @@ export class NativeGraphView extends ItemView {
     this.graph = new Graph();
     const LABEL_THRESHOLD = 4;
 
+    const typeColor = (t: string): string => {
+        let h = 5381;
+        for (const ch of String(t || 'unknown').toLowerCase())
+            h = ((h * 33) ^ ch.charCodeAt(0)) & 0x7fffffff;
+        const hue = h % 360, s = 0.6, l = 0.45;
+        const a = s * Math.min(l, 1 - l);
+        const f = (n: number) => {
+            const k = (n + hue / 30) % 12;
+            const v = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+            return Math.round(255 * v).toString(16).padStart(2, '0');
+        };
+        return `#${f(0)}${f(8)}${f(4)}`;
+    };
+
     nodes.forEach(n => {
         if (!this.graph?.hasNode(n.id)) {
             const showLabel = n.val > LABEL_THRESHOLD;
             this.graph?.addNode(n.id, {
                 label: showLabel ? n.id : '',
                 size: Math.max(3, Math.min(n.val * 1.5, 20)),
-                color: '#00d4ff', 
+                color: typeColor(n.type),
+                base_color: typeColor(n.type),
                 type: 'circle', 
                 node_type: n.type, 
                 desc: n.desc,
@@ -446,7 +474,7 @@ export class NativeGraphView extends ItemView {
 
         this.sigmaInstance = new Sigma(this.graph, container, {
             minCameraRatio: 0.001, maxCameraRatio: 10, renderLabels: true,
-            labelFont: "monospace", labelColor: { color: "#fff" }, labelSize: 14, labelWeight: "bold",
+            labelFont: "monospace", labelColor: { color: getComputedStyle(container).getPropertyValue('--nrlcmp-graph-label-color').trim() || getComputedStyle(document.body).getPropertyValue('--text-normal').trim() || '#000' }, labelSize: 14, labelWeight: "bold",
             allowInvalidContainer: true, zIndex: true
         });
 
@@ -463,33 +491,39 @@ export class NativeGraphView extends ItemView {
         });
 
         this.sigmaInstance.on("enterNode", (event) => {
-            const attrs = this.graph?.getNodeAttributes(event.node);
-            if (!attrs) return;
-            if (attrs.color !== '#ffffff') {
-                this.graph?.setNodeAttribute(event.node, 'label', event.node);
-                this.graph?.setNodeAttribute(event.node, 'color', '#ff0055');
-                this.graph?.setNodeAttribute(event.node, 'zIndex', 10);
-            }
+            this.graph?.setNodeAttribute(event.node, 'label', event.node);
+            this.graph?.setNodeAttribute(event.node, 'zIndex', 10);
         });
 
         this.sigmaInstance.on("leaveNode", (event) => {
+            if (event.node === this.focusedNode) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (this.sigmaInstance as any)?.highlightedNodes.add(event.node);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (this.sigmaInstance as any)?.scheduleHighlightedNodesRender();
+                return;
+            }
             const attrs = this.graph?.getNodeAttributes(event.node);
             if (!attrs) return;
-            if (attrs.color === '#ff0055') {
-                this.graph?.setNodeAttribute(event.node, 'color', '#00d4ff');
-                this.graph?.setNodeAttribute(event.node, 'zIndex', 0);
-                if (attrs.forceLabel) {
-                    this.graph?.setNodeAttribute(event.node, 'label', event.node);
-                } else {
-                    this.graph?.setNodeAttribute(event.node, 'label', '');
-                }
+            this.graph?.setNodeAttribute(event.node, 'zIndex', 0);
+            if (attrs.forceLabel) {
+                this.graph?.setNodeAttribute(event.node, 'label', event.node);
+            } else {
+                this.graph?.setNodeAttribute(event.node, 'label', '');
             }
         });
 
         this.sigmaInstance.on("clickStage", () => {
+            if (this.focusedNode && this.sigmaInstance) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (this.sigmaInstance as any).highlightedNodes.delete(this.focusedNode);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (this.sigmaInstance as any).scheduleHighlightedNodesRender();
+            }
+            this.focusedNode = null;
             if (!this.graph) return;
             this.graph.forEachNode((n, a) => {
-                this.graph?.setNodeAttribute(n, 'color', '#00d4ff');
+                this.graph?.setNodeAttribute(n, 'color', a.base_color || '#00d4ff');
                 this.graph?.setNodeAttribute(n, 'zIndex', 0);
                 this.graph?.setNodeAttribute(n, 'label', a.forceLabel ? n : '');
             });
@@ -497,7 +531,15 @@ export class NativeGraphView extends ItemView {
                 this.graph?.setEdgeAttribute(e, 'hidden', false);
                 this.graph?.setEdgeAttribute(e, 'color', '#333');
             });
-            if(this.detailsPanel) this.detailsPanel.removeClass('nrlcmp-visible');
+            if (this.detailsPanel) this.detailsPanel.removeClass('nrlcmp-visible');
+        });
+
+        this.sigmaInstance.on("afterRender", () => {
+            if (!this.focusedNode || !this.sigmaInstance) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (this.sigmaInstance as any).highlightedNodes.add(this.focusedNode);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (this.sigmaInstance as any).scheduleHighlightedNodesRender();
         });
     };
     requestAnimationFrame(initSigma);
@@ -564,6 +606,13 @@ showNodeDetails(node: Partial<GraphNode>) {
 
     // 1. Header
     const header = this.detailsPanel.createDiv({ cls: 'nrlcmp-details-header' });
+    const headerColor = (node as any).base_color || (node as any).color || (() => {
+        let h = 5381;
+        for (const ch of String(type || 'concept').toLowerCase())
+            h = ((h * 33) ^ ch.charCodeAt(0)) & 0x7fffffff;
+        return `hsl(${h % 360},60%,38%)`;
+    })();
+    header.style.backgroundColor = headerColor;
     header.createSpan({ text: type.toUpperCase(), cls: 'nrlcmp-details-type' });
 
     const btnGroup = header.createDiv({ cls: 'nrlcmp-btn-group' });
