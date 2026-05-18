@@ -1,7 +1,40 @@
-import { Setting, Notice } from 'obsidian'
+import {
+  AbstractInputSuggest,
+  App,
+  Setting,
+  Notice,
+  TFolder,
+} from 'obsidian'
 import { EnvEditorModal } from '../../modals/EnvEditorModal'
 import { useEffect, useRef, useState } from 'react'
 import NeuralComposerPlugin from '../../../main'
+
+class FolderSuggest extends AbstractInputSuggest<TFolder> {
+  private readonly input: HTMLInputElement
+
+  constructor(app: App, inputEl: HTMLInputElement) {
+    super(app, inputEl)
+    this.input = inputEl
+  }
+
+  getSuggestions(query: string): TFolder[] {
+    const lower = query.toLowerCase()
+    return this.app.vault
+      .getAllFolders(false)
+      .filter((f) => f.path.toLowerCase().includes(lower))
+      .slice(0, 50)
+  }
+
+  renderSuggestion(folder: TFolder, el: HTMLElement): void {
+    el.setText(folder.path)
+  }
+
+  selectSuggestion(folder: TFolder): void {
+    this.setValue(folder.path)
+    this.input.dispatchEvent(new Event('input'))
+    this.close()
+  }
+}
 
 export const BACKEND_NAME = 'LightRAG'
 export const TERM_API = 'API'
@@ -269,8 +302,10 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
 
       new Setting(container)
         .setName('Ontology source folder')
-        .setDesc('Folder with representative notes to analyze.')
-        .addText((text) =>
+        .setDesc(
+          'Vault-relative folder with representative notes to analyze (e.g. Main/Memories).',
+        )
+        .addText((text) => {
           text
             .setPlaceholder(`${FOLDER_DIR}`)
             .setValue(plugin.settings.lightRagOntologyFolder)
@@ -279,8 +314,9 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
                 ...plugin.settings,
                 lightRagOntologyFolder: value,
               })
-            }),
-        )
+            })
+          new FolderSuggest(plugin.app, text.inputEl)
+        })
 
       let typesTextArea: HTMLTextAreaElement
 
