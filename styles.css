@@ -170,6 +170,7 @@
   overflow-y: auto;
   font-size: var(--font-ui-small);
   padding: var(--size-2-1);
+  line-height: var(--line-height-tight);
 }
 
 @media (hover: hover) {
@@ -190,9 +191,6 @@
 /* .nrlcmp-textarea::placeholder {
   color: var(--text-faint);
 } */
-.nrlcmp-textarea {
-  line-height: var(--line-height-tight);
-}
 
 .nrlcmp-chat-user-input-container {
   position: relative;
@@ -553,7 +551,7 @@ input[type='text'].nrlcmp-chat-list-dropdown-item-title-input {
 
   /* Override clickable-icon color */
   .nrlcmp-code-block-header-button.clickable-icon {
-    color: var(--text-color) !important;
+    color: var(--text-color);
   }
 }
 
@@ -587,16 +585,16 @@ input[type='text'].nrlcmp-chat-list-dropdown-item-title-input {
   .cm-editor {
     flex: 1 1 0;
     min-height: 0;
-    position: relative !important;
+    position: relative;
     box-sizing: border-box;
-    display: flex !important;
+    display: flex;
     flex-direction: column;
   }
 
   .cm-scroller {
     padding: var(--file-margins);
-    display: flex !important;
-    align-items: flex-start !important;
+    display: flex;
+    align-items: flex-start;
     line-height: 1.4;
     height: 100%;
     overflow-x: auto;
@@ -718,18 +716,18 @@ input[type='text'].nrlcmp-chat-list-dropdown-item-title-input {
 }
 
 button.nrlcmp-chat-input-model-select {
-  background-color: transparent !important;
-  box-shadow: none !important;
-  border: 0 !important;
-  padding: 0 !important;
-  font-size: var(--font-smallest) !important;
-  font-weight: var(--font-medium) !important;
-  color: var(--text-muted) !important;
-  cursor: pointer !important;
-  height: auto !important;
+  background-color: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+  font-size: var(--font-smallest);
+  font-weight: var(--font-medium);
+  color: var(--text-muted);
+  cursor: pointer;
+  height: auto;
 
   &:hover {
-    color: var(--text-normal) !important;
+    color: var(--text-normal);
   }
 
   .nrlcmp-chat-input-model-select__model-name {
@@ -823,9 +821,9 @@ button.nrlcmp-chat-input-model-select {
 }
 
 /* prevent setting-item:first-child overwriting padding-top and border-top */
-.nrlcmp-settings-textarea-header {
-  padding-top: 0.75em !important;
-  border-top: 1px solid var(--background-modifier-border) !important;
+.nrlcmp-settings-textarea-header.setting-item {
+  padding-top: 0.75em;
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .nrlcmp-settings-model-container {
@@ -1416,7 +1414,7 @@ button.nrlcmp-chat-input-model-select {
 
   /* Show frontmatter which is hidden by default */
   .frontmatter {
-    display: block !important;
+    display: block;
     background-color: transparent;
     border-top: 1px solid var(--background-modifier-border);
     border-bottom: 1px solid var(--background-modifier-border);
@@ -1555,13 +1553,13 @@ button.nrlcmp-chat-input-model-select {
   align-items: center;
 
   .nrlcmp-split-button-primary {
-    border-radius: var(--button-radius) 0 0 var(--button-radius) !important;
+    border-radius: var(--button-radius) 0 0 var(--button-radius);
   }
 
   .nrlcmp-split-button-toggle {
     padding: var(--size-4-1);
-    border-radius: 0 var(--button-radius) var(--button-radius) 0 !important;
-    border-left: none !important;
+    border-radius: 0 var(--button-radius) var(--button-radius) 0;
+    border-left: none;
   }
 }
 
@@ -1877,10 +1875,10 @@ button.nrlcmp-chat-input-model-select {
 }
 
 .nrlcmp-toolbar-input {
-  background: rgba(0, 0, 0, 0.6) !important;
-  border: 1px solid var(--text-accent) !important;
-  color: #ffffff !important;
-  padding: 6px 10px !important;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--text-accent);
+  color: #ffffff;
+  padding: 6px 10px;
   border-radius: 6px;
   outline: none;
   width: 200px;
@@ -1895,10 +1893,10 @@ button.nrlcmp-chat-input-model-select {
 }
 
 .nrlcmp-toolbar-btn {
-  background: rgba(0, 0, 0, 0.6) !important;
-  border: 1px solid #444444 !important;
-  color: #cccccc !important;
-  padding: 6px !important;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #444444;
+  color: #cccccc;
+  padding: 6px;
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -1927,10 +1925,10 @@ button.nrlcmp-chat-input-model-select {
 /* --- NEURAL MANAGER (Native Graph View) --- */
 
 .nrlcmp-graph-view {
-  display: flex !important;
-  flex-direction: row !important; /* Fuerza horizontal */
-  height: 100% !important; /* Fuerza altura total */
-  width: 100% !important;
+  display: flex;
+  flex-direction: row; /* Fuerza horizontal */
+  height: 100%; /* Fuerza altura total */
+  width: 100%;
   overflow: hidden;
   position: relative;
   background-color: var(--background-primary);
@@ -1947,7 +1945,7 @@ button.nrlcmp-chat-input-model-select {
 .nrlcmp-graph-zone {
   flex-grow: 1; /* Ocupa todo el espacio sobrante */
   flex-basis: 0; /* Evita problemas de tamaño mínimo */
-  height: 100% !important;
+  height: 100%;
   position: relative; /* Para que la toolbar flote aquí dentro */
   overflow: hidden;
   display: flex; /* Para centrar el canvas si es necesario */
@@ -1955,8 +1953,8 @@ button.nrlcmp-chat-input-model-select {
 }
 
 .nrlcmp-sigma-container {
-  width: 100% !important;
-  height: 100% !important;
+  width: 100%;
+  height: 100%;
   flex: 1;
   display: block;
   outline: none; /* Quitar borde azul al seleccionar */
@@ -1974,16 +1972,16 @@ button.nrlcmp-chat-input-model-select {
 }
 
 .nrlcmp-toolbar-btn:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
-  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 /* Sidebar */
 .nrlcmp-sidebar {
-  width: 320px !important;
+  width: 320px;
   min-width: 320px; /* Que no se aplaste */
   max-width: 320px;
-  height: 100% !important;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background-color: var(--background-secondary);
@@ -2074,7 +2072,7 @@ button.nrlcmp-chat-input-model-select {
 
 /* NUEVA CLASE PARA MOSTRARLO */
 .nrlcmp-details-panel.is-visible {
-  display: block !important;
+  display: block;
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -2343,17 +2341,17 @@ button.nrlcmp-chat-input-model-select {
 
 /* --- UTILIDADES DE VISIBILIDAD Y LAYOUT --- */
 .nrlcmp-visible {
-  display: block !important;
+  display: block;
 }
 /* Reemplazo para style.display = 'none' */
 
 .nrlcmp-hidden {
-  display: none !important;
+  display: none;
 }
 
 /* Reemplazo para style.display = 'block' */
 .nrlcmp-visible-block {
-  display: block !important;
+  display: block;
 }
 
 /* Reemplazo para style.display = 'flex' */
@@ -2520,7 +2518,7 @@ button.nrlcmp-chat-input-model-select {
 }
 
 .nrlcmp-env-setting {
-  display: block !important; /* Force block to allow textarea full width */
+  display: block; /* Force block to allow textarea full width */
 }
 
 .nrlcmp-env-textarea {

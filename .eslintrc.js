@@ -20,7 +20,6 @@ const config = {
     'plugin:import/recommended',
     'plugin:import/typescript',
     'prettier',
-    'plugin:react/recommended',
     'plugin:react-hooks/recommended',
     //"plugin:obsidianmd/recommended"
   ],
@@ -44,8 +43,6 @@ const config = {
         caughtErrorsIgnorePattern: '^_',
       },
     ],
-
-    'react/react-in-jsx-scope': 'off',
 
     'import/no-unresolved': 'off',
 
