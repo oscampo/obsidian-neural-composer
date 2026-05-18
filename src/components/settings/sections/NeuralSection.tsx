@@ -1,10 +1,4 @@
-import {
-  AbstractInputSuggest,
-  App,
-  Setting,
-  Notice,
-  TFolder,
-} from 'obsidian'
+import { AbstractInputSuggest, App, Setting, Notice, TFolder } from 'obsidian'
 import { EnvEditorModal } from '../../modals/EnvEditorModal'
 import { useEffect, useRef, useState } from 'react'
 import NeuralComposerPlugin from '../../../main'
