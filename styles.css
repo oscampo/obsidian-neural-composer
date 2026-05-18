@@ -1874,7 +1874,7 @@ button.nrlcmp-chat-input-model-select {
   align-items: center;
 }
 
-.nrlcmp-toolbar-input {
+.nrlcmp-graph-view .nrlcmp-toolbar-input {
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid var(--text-accent);
   color: #ffffff;
@@ -1887,12 +1887,12 @@ button.nrlcmp-chat-input-model-select {
   transition: width 0.2s ease;
 }
 
-.nrlcmp-toolbar-input:focus {
+.nrlcmp-graph-view .nrlcmp-toolbar-input:focus {
   width: 250px;
   background: rgba(0, 0, 0, 0.8);
 }
 
-.nrlcmp-toolbar-btn {
+.nrlcmp-graph-view .nrlcmp-toolbar-btn {
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid #444444;
   color: #cccccc;
@@ -1924,10 +1924,10 @@ button.nrlcmp-chat-input-model-select {
 }
 /* --- NEURAL MANAGER (Native Graph View) --- */
 
-.nrlcmp-graph-view {
+.view-content .nrlcmp-graph-view {
   display: flex;
-  flex-direction: row; /* Fuerza horizontal */
-  height: 100%; /* Fuerza altura total */
+  flex-direction: row;
+  height: 100%;
   width: 100%;
   overflow: hidden;
   position: relative;
@@ -1942,22 +1942,22 @@ button.nrlcmp-chat-input-model-select {
   background-color: #111111; /* Dark grey for 2D */
 }
 
-.nrlcmp-graph-zone {
-  flex-grow: 1; /* Ocupa todo el espacio sobrante */
-  flex-basis: 0; /* Evita problemas de tamaño mínimo */
+.nrlcmp-graph-view .nrlcmp-graph-zone {
+  flex-grow: 1;
+  flex-basis: 0;
   height: 100%;
-  position: relative; /* Para que la toolbar flote aquí dentro */
+  position: relative;
   overflow: hidden;
-  display: flex; /* Para centrar el canvas si es necesario */
+  display: flex;
   flex-direction: column;
 }
 
-.nrlcmp-sigma-container {
+.nrlcmp-graph-view .nrlcmp-sigma-container {
   width: 100%;
   height: 100%;
   flex: 1;
   display: block;
-  outline: none; /* Quitar borde azul al seleccionar */
+  outline: none;
 }
 
 /* Toolbar */
@@ -1971,22 +1971,22 @@ button.nrlcmp-chat-input-model-select {
   align-items: center;
 }
 
-.nrlcmp-toolbar-btn:hover {
+.nrlcmp-graph-view .nrlcmp-toolbar-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
 /* Sidebar */
-.nrlcmp-sidebar {
+.nrlcmp-graph-view .nrlcmp-sidebar {
   width: 320px;
-  min-width: 320px; /* Que no se aplaste */
+  min-width: 320px;
   max-width: 320px;
   height: 100%;
   display: flex;
   flex-direction: column;
   background-color: var(--background-secondary);
   border-left: 1px solid var(--background-modifier-border);
-  z-index: 5; /* Encima del grafo si se solapan */
+  z-index: 5;
 }
 
 .nrlcmp-sidebar-header {
@@ -2066,6 +2066,7 @@ button.nrlcmp-chat-input-model-select {
 }
 
 .nrlcmp-details-panel.nrlcmp-visible {
+  display: block;
   opacity: 1;
   pointer-events: auto;
 }
