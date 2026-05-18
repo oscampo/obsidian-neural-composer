@@ -587,28 +587,25 @@ export default class NeuralComposerPlugin extends Plugin {
         const isNative = nativeProviders.includes(llmProvider.id)
 
         if (isNative) {
-          // COMPORTAMIENTO ESTÁNDAR
           envContent += `LLM_BINDING=${llmProvider.id}\n`
 
-          // Manejo específico de hosts nativos
           if (llmProvider.id === 'ollama' && llmProvider.baseUrl) {
             envContent += `OLLAMA_HOST=${llmProvider.baseUrl}\n`
-          } else if (llmProvider.id === 'openai' && llmProvider.baseUrl) {
-            envContent += `OPENAI_BASE_URL=${llmProvider.baseUrl}\n`
+          } else if (llmProvider.baseUrl) {
+            envContent += `LLM_BINDING_HOST=${llmProvider.baseUrl}\n`
+          }
+          if (llmProvider.apiKey) {
+            envContent += `LLM_BINDING_API_KEY=${llmProvider.apiKey}\n`
           }
         } else {
-          // COMPORTAMIENTO CUSTOM (FIX PARA ISSUE #8)
-          // Si es custom, asumimos protocolo OpenAI (estándar de la industria)
-          envContent += `LLM_BINDING=openai\n` // Forzamos 'openai'
+          // Custom provider: use openai-compatible binding
+          envContent += `LLM_BINDING=openai\n`
 
           if (llmProvider.baseUrl) {
-            envContent += `OPENAI_BASE_URL=${llmProvider.baseUrl}\n`
+            envContent += `LLM_BINDING_HOST=${llmProvider.baseUrl}\n`
           }
-
-          // Importante: Escribir la clave aquí porque abajo el bloque genérico de API Keys
-          // busca por ID ('MY_CUSTOM_ID') y no generaría 'OPENAI_API_KEY'.
           if (llmProvider.apiKey) {
-            envContent += `OPENAI_API_KEY=${llmProvider.apiKey}\n`
+            envContent += `LLM_BINDING_API_KEY=${llmProvider.apiKey}\n`
           }
         }
 
@@ -629,18 +626,23 @@ export default class NeuralComposerPlugin extends Plugin {
         const isNativeEmbed = nativeProviders.includes(embedProvider.id)
 
         if (isNativeEmbed) {
-          // Comportamiento Estándar
           envContent += `EMBEDDING_BINDING=${embedProvider.id}\n`
+
+          if (embedProvider.baseUrl) {
+            envContent += `EMBEDDING_BINDING_HOST=${embedProvider.baseUrl}\n`
+          }
+          if (embedProvider.apiKey) {
+            envContent += `EMBEDDING_BINDING_API_KEY=${embedProvider.apiKey}\n`
+          }
         } else {
-          // Comportamiento Custom: Disfrazarlo de API compatible con OpenAI
+          // Custom provider: use openai-compatible binding
           envContent += `EMBEDDING_BINDING=openai\n`
 
           if (embedProvider.baseUrl) {
-            envContent += `OPENAI_BASE_URL=${embedProvider.baseUrl}\n`
+            envContent += `EMBEDDING_BINDING_HOST=${embedProvider.baseUrl}\n`
           }
-          // Inyectamos la clave aquí directamente para que no quede vacía
           if (embedProvider.apiKey) {
-            envContent += `OPENAI_API_KEY=${embedProvider.apiKey}\n`
+            envContent += `EMBEDDING_BINDING_API_KEY=${embedProvider.apiKey}\n`
           }
         }
 

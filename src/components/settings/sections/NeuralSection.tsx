@@ -19,6 +19,8 @@ export const YOUR_SERVER = 'http://your-server:9621'
 export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
   const settingsRef = useRef<HTMLDivElement>(null)
 
+  const [settings, setLocalSettings] = useState(plugin.settings)
+
   // Local state for immediate UI reactivity
   const [currentRerankBinding, setCurrentRerankBinding] = useState(
     plugin.settings.lightRagRerankBinding,
@@ -27,6 +29,10 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
     plugin.settings.useCustomEntityTypes,
   )
   const [useRemote, setUseRemote] = useState(plugin.settings.lightRagUseRemote)
+
+  useEffect(() => {
+    return plugin.addSettingsChangeListener(setLocalSettings)
+  }, [plugin])
 
   useEffect(() => {
     if (!settingsRef.current) return
@@ -141,11 +147,11 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
         `Select the model ${BACKEND_NAME} will use for indexing/reasoning.`,
       )
       .addDropdown((dropdown) => {
-        plugin.settings.chatModels.forEach((model) => {
+        settings.chatModels.forEach((model) => {
           dropdown.addOption(model.id, `${model.providerId} - ${model.model}`)
         })
         dropdown.addOption('', 'Same as chat model (default)')
-        dropdown.setValue(plugin.settings.lightRagModelId || '')
+        dropdown.setValue(settings.lightRagModelId || '')
         dropdown.onChange((value) => {
           void (async () => {
             await plugin.setSettings({
@@ -164,7 +170,7 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
         'Select the model used for vectorizing your notes, (must match the dimensions used during ingestion).',
       )
       .addDropdown((dropdown) => {
-        plugin.settings.embeddingModels.forEach((model) => {
+        settings.embeddingModels.forEach((model) => {
           dropdown.addOption(
             model.id,
             `${model.providerId} - ${model.model} (${model.dimension || '?'} dim)`,
@@ -172,7 +178,7 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
         })
 
         dropdown.addOption('', 'Same as chat model (default)')
-        dropdown.setValue(plugin.settings.lightRagEmbeddingModelId || '')
+        dropdown.setValue(settings.lightRagEmbeddingModelId || '')
 
         dropdown.onChange((value) => {
           void (async () => {
@@ -578,7 +584,7 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
           })
         })
       })
-  }, [plugin.settings, currentRerankBinding, useCustomOntology, useRemote])
+  }, [settings, currentRerankBinding, useCustomOntology, useRemote])
 
   return <div ref={settingsRef} />
 }
