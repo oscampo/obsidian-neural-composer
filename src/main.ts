@@ -593,11 +593,7 @@ export default class NeuralComposerPlugin extends Plugin {
           // Manejo específico de hosts nativos
           if (llmProvider.id === 'ollama' && llmProvider.baseUrl) {
             envContent += `OLLAMA_HOST=${llmProvider.baseUrl}\n`
-          } else if (
-            llmProvider.id === 'openai' &&
-            llmProvider.baseUrl?.includes('localhost')
-          ) {
-            // Caso raro de proxy local haciéndose pasar por OpenAI oficial
+          } else if (llmProvider.id === 'openai' && llmProvider.baseUrl) {
             envContent += `OPENAI_BASE_URL=${llmProvider.baseUrl}\n`
           }
         } else {
