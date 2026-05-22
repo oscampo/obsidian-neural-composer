@@ -3,6 +3,7 @@
 // To add a new icon: import it here and re-export. Do NOT import from 'lucide-react' directly.
 export { default as ArrowBigUp } from 'lucide-react/dist/esm/icons/arrow-big-up'
 export { default as Brain } from 'lucide-react/dist/esm/icons/brain'
+export { default as BrainCircuit } from 'lucide-react/dist/esm/icons/brain-circuit'
 export { default as ArrowDown } from 'lucide-react/dist/esm/icons/arrow-down'
 export { default as ArrowRightLeft } from 'lucide-react/dist/esm/icons/arrow-right-left'
 export { default as ArrowUp } from 'lucide-react/dist/esm/icons/arrow-up'

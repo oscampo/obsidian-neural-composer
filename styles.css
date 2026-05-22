@@ -2793,134 +2793,33 @@ button.nrlcmp-chat-input-model-select {
 
 /* ===========================================================================
    V3 Settings Dashboard  (nc-* namespace)
+   Layout-critical properties live as inline styles on the React components
+   so they always apply regardless of Obsidian theme CSS specificity.
+   Only interactive / pseudo-class styles live here.
    =========================================================================== */
 
-/* Strip Obsidian's default containerEl padding so nc-root can fill the pane */
+/* Strip Obsidian's default containerEl padding so the layout fills the pane */
 .nc-settings-host {
   padding: 0 !important;
   overflow: hidden !important;
 }
 
-/* Root -------------------------------------------------------------------- */
-.nc-root {
-  display: flex;
-  height: 100%;
-  min-height: 520px;
-  background: var(--background-primary);
-  font-family: var(--font-interface);
-}
-
-/* Rail -------------------------------------------------------------------- */
-.nc-rail {
-  width: 64px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0 16px;
-  background: var(--background-secondary);
-  border-right: 1px solid var(--background-modifier-border);
-  gap: 0;
-}
-
-.nc-rail__logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 8px;
-  color: var(--interactive-accent);
-  opacity: 0.85;
-  flex-shrink: 0;
-}
-
-.nc-rail__nav {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-}
-
-.nc-rail__tab {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
-  box-shadow: none;
-  padding: 0;
-}
-
-.nc-rail__tab:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-}
-
-.nc-rail__tab.is-active {
-  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
-  color: var(--interactive-accent);
-}
-
-.nc-rail__active-bar {
-  position: absolute;
-  left: -10px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 22px;
-  border-radius: 0 3px 3px 0;
-  background: var(--interactive-accent);
-  pointer-events: none;
-}
-
-/* Main area --------------------------------------------------------------- */
-.nc-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Command bar ------------------------------------------------------------- */
-.nc-cmdbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 52px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  flex-shrink: 0;
-}
-
-.nc-cmdbar__spacer {
-  flex: 1;
-}
-
-/* Quick-slot pills -------------------------------------------------------- */
+/* Quick-slot pill buttons — hover state requires a CSS pseudo-class */
 .nc-quickslot {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   height: 34px;
-  padding: 0 10px 0 8px;
-  border-radius: 8px;
+  padding: 5px 10px 5px 7px;
+  border-radius: 7px;
   border: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
+  background: var(--background-primary-alt, var(--background-secondary));
   cursor: pointer;
   transition: border-color 120ms ease, background 120ms ease;
   white-space: nowrap;
   color: var(--text-normal);
+  font: inherit;
+  flex-shrink: 0;
 }
 
 .nc-quickslot:hover {
@@ -2928,97 +2827,8 @@ button.nrlcmp-chat-input-model-select {
   background: var(--background-modifier-hover);
 }
 
-.nc-quickslot__text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.2;
-  gap: 1px;
-}
-
-.nc-quickslot__label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.nc-quickslot__model {
-  font-family: var(--font-monospace);
-  font-size: 11px;
-  color: var(--text-normal);
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.nc-quickslot__chevron {
-  color: var(--text-faint);
-  flex-shrink: 0;
-}
-
-/* LightRAG status pill ---------------------------------------------------- */
-.nc-server-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 13px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
-  margin-left: 4px;
-}
-
-.nc-server-pill__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #22c55e 25%, transparent);
-}
-
-/* Scrollable content area ------------------------------------------------- */
-.nc-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* Tab content wrapper ----------------------------------------------------- */
+/* Tab content padding — simpler to keep in CSS than repeat as inline style */
 .nc-tab-content {
-  padding: 24px 32px 36px;
+  padding: 20px 28px 32px;
   max-width: 780px;
-}
-
-.nc-tab-eyebrow {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--interactive-accent);
-  opacity: 0.75;
-  margin-bottom: 4px;
-}
-
-.nc-tab-h1 {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--text-normal);
-  margin: 0 0 20px;
-  padding: 0;
-  border: none;
-}
-
-.nc-tab-h1-sub {
-  font-size: 20px;
-  font-weight: 400;
-  color: var(--text-muted);
 }
