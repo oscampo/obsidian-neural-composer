@@ -503,85 +503,24 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
       }
     }
 
-    // --- ADVANCED ENV SECTION ---
-    container.createEl('h4', { text: 'Advanced configuration (total control)' })
-
-    const details = container.createEl('details')
-    const summary = details.createEl('summary', {
-      text: 'Edit custom .env variables',
-    })
-    summary.addClass('nrlcmp-cursor-pointer')
-
-    const advancedContainer = details.createDiv({
-      cls: 'nrlcmp-advanced-container',
-    })
-
-    advancedContainer.createEl('p', {
-      text: 'Variables defined here will be appended to the .env file and will *override* any plugin defaults. Use this for advanced tuning (context limits, timeouts, chunking strategies).',
-      cls: 'setting-item-description',
-    })
-
-    // ENV TEXT AREA
-    new Setting(advancedContainer)
-      .setClass('nrlcmp-env-setting')
-      .addTextArea((text) => {
-        text
-          .setPlaceholder(`${ADV_SETTINGS}`)
-          .setValue(plugin.settings.lightRagCustomEnv)
-          .onChange((value) => {
-            void plugin.setSettings({
-              ...plugin.settings,
-              lightRagCustomEnv: value,
-            })
-          })
-        text.inputEl.addClass('nrlcmp-env-textarea')
-      })
-
-    // TEMPLATE BUTTON
-    new Setting(advancedContainer)
-      .setName('Load full configuration template')
+    // Apply changes & restart — after Reranking, before Visualization
+    new Setting(container)
+      .setName('Apply changes & restart')
       .setDesc(
-        `Paste the full list of available ${BACKEND_NAME} variables (commented out) into the box above.`,
+        'You *must* restart the server after changing any setting above to apply the new configuration (.env).',
       )
-      .addButton((btn) =>
-        btn.setButtonText('Insert template').onClick(() => {
-          void (async () => {
-            if (plugin.settings.lightRagCustomEnv.length > 50) {
-              new Notice('Overwriting existing custom configuration...')
-            }
-
-            const template = `# --- Query Configuration ---
-# ENABLE_LLM_CACHE=true
-# TOP_K=40
-# CHUNK_TOP_K=20
-# MAX_TOTAL_TOKENS=30000
-# KG_CHUNK_PICK_METHOD=VECTOR
-
-# --- Document Processing ---
-# CHUNK_SIZE=1200
-# CHUNK_OVERLAP_SIZE=100
-# ENABLE_LLM_CACHE_FOR_EXTRACT=true
-
-# --- Timeouts ---
-# LLM_TIMEOUT=180
-# EMBEDDING_TIMEOUT=30
-
-# --- Storage Selection (Advanced) ---
-# LIGHTRAG_KV_STORAGE=JsonKVStorage
-# LIGHTRAG_VECTOR_STORAGE=NanoVectorDBStorage
-`
-            await plugin.setSettings({
-              ...plugin.settings,
-              lightRagCustomEnv: template,
-            })
-
-            const ta = advancedContainer.querySelector('textarea')
-            if (ta) ta.value = template
-          })()
-        }),
+      .setClass('nrlcmp-restart-setting')
+      .addButton((button) =>
+        button
+          .setButtonText('Restart server now')
+          .setCta()
+          .onClick(() => {
+            new Notice('Restarting server...')
+            plugin.restartLightRagServer()
+          }),
       )
 
-    // VISUALIZATION — Restart/server-config/reprocess moved to Advanced tab
+    // VISUALIZATION — Advanced env config moved to Advanced tab
     container.createEl('h4', { text: 'Visualization' })
 
     new Setting(container)
