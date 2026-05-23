@@ -390,12 +390,14 @@ export default class NeuralComposerPlugin extends Plugin {
         if (!(file instanceof TFile)) return
         if (!isInSyncFolder(file.path)) return
         if (!SUPPORTED_EXTENSIONS.includes(file.extension.toLowerCase())) return
+        // Guard here (before setTimeout) so startup create-events are dropped
+        // before the 2 s timer is even scheduled. By the time the timer would
+        // fire, onLayoutReady has already set docIndexReady = true, so the
+        // guard inside the async callback would be bypassed on every startup file.
+        if (!this.docIndexReady) return
         // Wait 2 s so the file content is available (especially for moves/imports)
         setTimeout(() => {
           void (async () => {
-            // Wait until the doc index is loaded — avoids re-submitting
-            // already-ingested files when Obsidian fires create events on startup.
-            if (!this.docIndexReady) return
             // Skip if already processed and not modified
             if (this.docIndexService && !this.docIndexService.needsIngestion(file.path, file.stat.mtime)) {
               return
@@ -662,6 +664,12 @@ export default class NeuralComposerPlugin extends Plugin {
       this.docIndexService = new DocIndexService(this)
       this.fileExplorerDecorator = new FileExplorerDecorator()
       this.docIndexService.setUpdateCallback(() => this.decorateFileExplorer())
+
+      // MutationObserver inside FileExplorerDecorator watches childList changes
+      // (Obsidian re-rendering file items) and re-applies data-nc-status attributes.
+      // Safe: our setAttribute calls are attribute mutations — they do NOT fire
+      // childList observers, so there is zero risk of an infinite loop.
+      this.fileExplorerDecorator.startObserving(() => this.decorateFileExplorer())
 
       // Re-decorate whenever the workspace layout changes (pane open/close, etc.)
       this.registerEvent(

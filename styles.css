@@ -2847,30 +2847,31 @@ button.nrlcmp-chat-input-model-select {
 /* data-nc-status attribute is set/removed by FileExplorerDecorator.  */
 
 .nav-file-title[data-nc-status]::before {
-  content: '';
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-right: 6px;
-  vertical-align: middle;
-  align-self: center;
-  position: relative;
-  top: -1px;
+  /* Use a non-breaking space so the pseudo-element is never empty/collapsed. */
+  content: '\00a0' !important;
+  display: inline-block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  margin-right: 5px !important;
+  vertical-align: middle !important;
+  align-self: center !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
 }
 
 .nav-file-title[data-nc-status="processed"]::before {
-  background: #22c55e;
+  background-color: #22c55e !important;
 }
 
 .nav-file-title[data-nc-status="processing"]::before {
-  background: #f59e0b;
-  animation: nc-doc-pulse 1.5s ease-in-out infinite;
+  background-color: #f59e0b !important;
+  animation: nc-doc-pulse 1.5s ease-in-out infinite !important;
 }
 
 .nav-file-title[data-nc-status="failed"]::before {
-  background: #ef4444;
+  background-color: #ef4444 !important;
 }
 
 @keyframes nc-doc-pulse {
