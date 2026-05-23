@@ -3,6 +3,9 @@ import type { DocIndexService, DocStatus } from './docIndexService'
 
 export class FileExplorerDecorator {
   private observer: MutationObserver | null = null
+  private isDecorating = false
+  private pendingDecorate = false
+  private rafId: number | null = null
 
   constructor(
     private app: App,
@@ -14,38 +17,83 @@ export class FileExplorerDecorator {
     const container = this.getContainer()
     if (!container) return
 
-    this.observer = new MutationObserver(() => this.decorateAll())
+    this.observer = new MutationObserver((mutations) => {
+      // Ignore mutations we caused ourselves (our own dots being added/removed)
+      const isOwnMutation = mutations.every((m) =>
+        Array.from(m.addedNodes).concat(Array.from(m.removedNodes)).every(
+          (n) =>
+            n instanceof HTMLElement && n.classList.contains('nc-doc-dot'),
+        ),
+      )
+      if (isOwnMutation) return
+
+      this.scheduleDecorate()
+    })
+
     this.observer.observe(container, { childList: true, subtree: true })
-    this.decorateAll()
+    this.scheduleDecorate()
   }
 
   stop(): void {
     this.observer?.disconnect()
     this.observer = null
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId)
+      this.rafId = null
+    }
     this.cleanup()
   }
 
+  /** Schedule a decoration pass on the next animation frame (debounced). */
+  private scheduleDecorate(): void {
+    if (this.isDecorating) {
+      this.pendingDecorate = true
+      return
+    }
+    if (this.rafId !== null) return // already scheduled
+
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null
+      this.decorateAll()
+    })
+  }
+
   decorateAll(): void {
+    if (this.isDecorating) {
+      this.pendingDecorate = true
+      return
+    }
+
     const folder = this.getWatchedFolder()
     const container = this.getContainer()
     if (!container) return
 
-    const fileEls = container.querySelectorAll<HTMLElement>(
-      '.nav-file-title[data-path]',
-    )
+    this.isDecorating = true
+    try {
+      const fileEls = container.querySelectorAll<HTMLElement>(
+        '.nav-file-title[data-path]',
+      )
 
-    fileEls.forEach((el) => {
-      const path = el.getAttribute('data-path') ?? ''
-      const inFolder =
-        folder &&
-        (path === folder || path.startsWith(folder + '/'))
+      fileEls.forEach((el) => {
+        const path = el.getAttribute('data-path') ?? ''
+        const inFolder =
+          folder && (path === folder || path.startsWith(folder + '/'))
 
-      if (inFolder) {
-        this.applyDot(el, this.docIndex.getStatus(path))
-      } else {
-        this.removeDot(el)
-      }
-    })
+        if (inFolder) {
+          this.applyDot(el, this.docIndex.getStatus(path))
+        } else {
+          this.removeDot(el)
+        }
+      })
+    } finally {
+      this.isDecorating = false
+    }
+
+    // If a decorate was requested while we were busy, run it next frame
+    if (this.pendingDecorate) {
+      this.pendingDecorate = false
+      this.scheduleDecorate()
+    }
   }
 
   refreshFile(filePath: string): void {
@@ -61,21 +109,38 @@ export class FileExplorerDecorator {
     const inFolder =
       folder && (filePath === folder || filePath.startsWith(folder + '/'))
 
-    if (inFolder) {
-      this.applyDot(el, this.docIndex.getStatus(filePath))
-    } else {
-      this.removeDot(el)
+    this.isDecorating = true
+    try {
+      if (inFolder) {
+        this.applyDot(el, this.docIndex.getStatus(filePath))
+      } else {
+        this.removeDot(el)
+      }
+    } finally {
+      this.isDecorating = false
     }
   }
 
   private applyDot(el: HTMLElement, status: DocStatus): void {
-    // Remove stale dot first
-    el.querySelector('.nc-doc-dot')?.remove()
+    const existing = el.querySelector('.nc-doc-dot')
 
-    if (status === 'unknown') return
+    if (status === 'unknown') {
+      existing?.remove()
+      return
+    }
+
+    const newClass = `nc-doc-dot nc-doc-dot--${status}`
+
+    if (existing) {
+      // Only update className if it changed — avoids a DOM write
+      if (existing.className !== newClass) {
+        existing.className = newClass
+      }
+      return
+    }
 
     const dot = document.createElement('span')
-    dot.className = `nc-doc-dot nc-doc-dot--${status}`
+    dot.className = newClass
     el.prepend(dot)
   }
 
