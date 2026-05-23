@@ -183,21 +183,23 @@ export class DocIndexService {
   }
 
   private async fetchAllDocs(): Promise<LRDoc[]> {
-    const url = `${this.plugin.settings.lightRagServerUrl}/documents/paginated`
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    // GET /documents returns all docs grouped by status (up to 1000).
+    // Simpler and more reliable than POST /documents/paginated.
+    const url = `${this.plugin.settings.lightRagServerUrl}/documents`
+    const headers: Record<string, string> = {}
     if (this.plugin.settings.lightRagApiKey) {
       headers['Authorization'] = `Bearer ${this.plugin.settings.lightRagApiKey}`
     }
-    const res = await requestUrl({
-      url,
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ page: 1, page_size: 1000 }),
-      throw: false,
-    })
+    const res = await requestUrl({ url, method: 'GET', headers, throw: false })
     if (res.status >= 400) return []
-    const data = res.json as { documents?: LRDoc[] }
-    return data.documents ?? []
+
+    // Response shape: { PENDING: [...], PROCESSING: [...], PROCESSED: [...], FAILED: [...], PREPROCESSED: [...] }
+    const data = res.json as Record<string, LRDoc[]>
+    const all: LRDoc[] = []
+    for (const bucket of Object.values(data)) {
+      if (Array.isArray(bucket)) all.push(...bucket)
+    }
+    return all
   }
 
   private mapStatus(s: LRStatus): DocStatus {

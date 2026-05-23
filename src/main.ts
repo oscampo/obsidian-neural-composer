@@ -142,6 +142,9 @@ export default class NeuralComposerPlugin extends Plugin {
   public docIndexService: DocIndexService | null = null
   private fileExplorerDecorator: FileExplorerDecorator | null = null
   private lastServerStatus: 'online' | 'offline' | 'busy' = 'offline'
+  /** True once the doc-status index has been loaded from disk. Prevents vault
+   *  events that fire during Obsidian startup from re-submitting already-ingested files. */
+  private docIndexReady = false
 
   // Node.js modules — loaded lazily on desktop only, always null on mobile
   private _nodeFs: typeof import('fs') | null = null
@@ -390,6 +393,9 @@ export default class NeuralComposerPlugin extends Plugin {
         // Wait 2 s so the file content is available (especially for moves/imports)
         setTimeout(() => {
           void (async () => {
+            // Wait until the doc index is loaded — avoids re-submitting
+            // already-ingested files when Obsidian fires create events on startup.
+            if (!this.docIndexReady) return
             // Skip if already processed and not modified
             if (this.docIndexService && !this.docIndexService.needsIngestion(file.path, file.stat.mtime)) {
               return
@@ -512,6 +518,7 @@ export default class NeuralComposerPlugin extends Plugin {
         const id = setTimeout(() => {
           this.modifyDebounceMap.delete(file.path)
           void (async () => {
+            if (!this.docIndexReady) return
             // Skip if not modified since last ingestion
             if (this.docIndexService && !this.docIndexService.needsIngestion(file.path, file.stat.mtime)) {
               return
@@ -653,7 +660,7 @@ export default class NeuralComposerPlugin extends Plugin {
 
       // Initialize doc index service + file explorer decoration
       this.docIndexService = new DocIndexService(this)
-      this.fileExplorerDecorator = new FileExplorerDecorator(this.app)
+      this.fileExplorerDecorator = new FileExplorerDecorator()
       this.docIndexService.setUpdateCallback(() => this.decorateFileExplorer())
 
       // Re-decorate whenever the workspace layout changes (pane open/close, etc.)
@@ -663,12 +670,18 @@ export default class NeuralComposerPlugin extends Plugin {
         }),
       )
 
-      // Load persisted index, decorate immediately, then sync with server
+      // Load persisted index, then allow vault events, then sync with server
       void (async () => {
         await this.docIndexService!.load()
+        this.docIndexReady = true   // vault events safe to process from here
         this.decorateFileExplorer()
         // Give the server 3 s to start before querying statuses
-        setTimeout(() => void this.docIndexService?.syncFromServer(), 3000)
+        setTimeout(() => {
+          void (async () => {
+            await this.docIndexService?.syncFromServer()
+            this.decorateFileExplorer() // re-decorate after server sync
+          })()
+        }, 3000)
       })()
     })
   }
