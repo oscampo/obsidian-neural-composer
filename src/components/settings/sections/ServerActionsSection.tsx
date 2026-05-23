@@ -47,22 +47,7 @@ export function ServerActionsSection({
     containerRef.current.empty()
     const container = containerRef.current
 
-    // 1. Server configuration — Review .env & restart
-    new Setting(container)
-      .setName('Server configuration')
-      .setDesc(
-        'Review the generated .env file, tweak advanced parameters, and restart the server.',
-      )
-      .addButton((button) =>
-        button
-          .setButtonText('Review .env & restart')
-          .setCta()
-          .onClick(() => {
-            new EnvEditorModal(app, plugin).open()
-          }),
-      )
-
-    // 2. Advanced configuration (total control) — env textarea
+    // 1. Advanced configuration (total control) — env textarea
     container.createEl('h4', {
       text: 'Advanced configuration (total control)',
     })
@@ -115,6 +100,21 @@ export function ServerActionsSection({
             if (ta) ta.value = ENV_TEMPLATE
           })()
         }),
+      )
+
+    // 2. Server configuration — Review .env & restart
+    new Setting(container)
+      .setName('Server configuration')
+      .setDesc(
+        'Review the generated .env file, tweak advanced parameters, and restart the server.',
+      )
+      .addButton((button) =>
+        button
+          .setButtonText('Review .env & restart')
+          .setCta()
+          .onClick(() => {
+            new EnvEditorModal(app, plugin).open()
+          }),
       )
 
     // 3. Reprocess failed documents
