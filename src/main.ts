@@ -409,7 +409,12 @@ export default class NeuralComposerPlugin extends Plugin {
             const ragEngine = await this.getRAGEngine()
             this.docIndexService?.setProcessing(file.path, file.stat.mtime)
             const ok = await ragEngine.ingestFile(file)
-            if (!ok) this.docIndexService?.setFailed(file.path)
+            if (!ok) {
+              this.docIndexService?.setFailed(file.path)
+            } else {
+              // Poll pipeline_status every 1 s → sync when done → update dots
+              this.docIndexService?.startPipelineWatch(1000)
+            }
             notice.setMessage(
               ok
                 ? `Graph sync: "${file.name}" sent — processing in background.`
@@ -494,9 +499,13 @@ export default class NeuralComposerPlugin extends Plugin {
               `Graph sync: sending "${file.name}"...`,
               0,
             )
+            this.docIndexService?.setProcessing(file.path, file.stat.mtime)
             const ok = await ragEngine.ingestFile(file)
-            if (ok) this.docIndexService?.setProcessing(file.path, file.stat.mtime)
-            else this.docIndexService?.setFailed(file.path)
+            if (!ok) {
+              this.docIndexService?.setFailed(file.path)
+            } else {
+              this.docIndexService?.startPipelineWatch(1000)
+            }
             notice.setMessage(
               ok
                 ? `Graph sync: "${file.name}" sent — processing in background.`
@@ -532,7 +541,11 @@ export default class NeuralComposerPlugin extends Plugin {
             const ragEngine = await this.getRAGEngine()
             this.docIndexService?.setProcessing(file.path, file.stat.mtime)
             const ok = await ragEngine.reindexFile(file)
-            if (!ok) this.docIndexService?.setFailed(file.path)
+            if (!ok) {
+              this.docIndexService?.setFailed(file.path)
+            } else {
+              this.docIndexService?.startPipelineWatch(1000)
+            }
             notice.setMessage(
               ok
                 ? `Graph sync: "${file.name}" sent — processing in background.`
@@ -574,7 +587,11 @@ export default class NeuralComposerPlugin extends Plugin {
                         file.stat.mtime,
                       )
                       const ok = await ragEngine.ingestFile(file)
-                      if (!ok) this.docIndexService!.setFailed(file.path)
+                      if (!ok) {
+                        this.docIndexService!.setFailed(file.path)
+                      } else {
+                        this.docIndexService!.startPipelineWatch(1000)
+                      }
                     })()
                   }),
               )
@@ -623,12 +640,18 @@ export default class NeuralComposerPlugin extends Plugin {
                             f.extension.toLowerCase(),
                           ),
                       )
+                    let anySubmitted = false
                     for (const f of files) {
                       const st = this.docIndexService!.getStatus(f.path)
                       if (st === 'failed' || st === 'unknown') {
                         this.docIndexService!.setProcessing(f.path, f.stat.mtime)
-                        void ragEngine.ingestFile(f)
+                        const ok = await ragEngine.ingestFile(f)
+                        if (!ok) this.docIndexService!.setFailed(f.path)
+                        else anySubmitted = true
                       }
+                    }
+                    if (anySubmitted) {
+                      this.docIndexService!.startPipelineWatch(1000)
                     }
                   })()
                 }),
@@ -678,18 +701,24 @@ export default class NeuralComposerPlugin extends Plugin {
         }),
       )
 
-      // Load persisted index, then allow vault events, then sync with server
+      // Load persisted index → render immediately, then sync with server
       void (async () => {
         await this.docIndexService!.load()
         this.docIndexReady = true   // vault events safe to process from here
-        this.decorateFileExplorer()
-        // Give the server 3 s to start before querying statuses
+        this.decorateFileExplorer() // render cached statuses right away
+
+        // Give a short delay for the server to be reachable, then sync.
+        // We check health first so we don't clobber the cached index when
+        // the server is simply offline.
         setTimeout(() => {
           void (async () => {
-            await this.docIndexService?.syncFromServer()
-            this.decorateFileExplorer() // re-decorate after server sync
+            const online = await this.docIndexService?.isServerOnline()
+            if (online) {
+              await this.docIndexService?.syncFromServer()
+              this.decorateFileExplorer()
+            }
           })()
-        }, 3000)
+        }, 2000)
       })()
     })
   }
@@ -1668,7 +1697,11 @@ export default class NeuralComposerPlugin extends Plugin {
 
   private updateStatusUI(status: 'online' | 'offline' | 'busy') {
     if (status === 'online' && this.lastServerStatus !== 'online') {
-      void this.docIndexService?.syncFromServer()
+      // Server just came online — sync statuses and update dots
+      void (async () => {
+        await this.docIndexService?.syncFromServer()
+        this.decorateFileExplorer()
+      })()
     }
     this.lastServerStatus = status
     if (!this.statusDotEl) return

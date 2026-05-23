@@ -9,18 +9,26 @@ export interface DocRecord {
   mtime?: number
 }
 
-type LRStatus = 'PENDING' | 'PROCESSING' | 'PREPROCESSED' | 'PROCESSED' | 'FAILED'
-
+/** Shape returned by POST /documents/paginated */
 interface LRDoc {
   id: string
   file_path: string
-  status: LRStatus
+  status: string // 'PENDING' | 'PROCESSING' | 'PREPROCESSED' | 'PROCESSED' | 'FAILED'
 }
 
+/**
+ * DocIndexService — single source of truth for watched-folder document status.
+ *
+ * Flow:
+ *  1. load()             – read doc-status.json from disk; render immediately.
+ *  2. syncFromServer()   – POST /documents/paginated → reconcile → persist → notify.
+ *  3. startPipelineWatch(1000) – after any folder change, poll pipeline_status every
+ *     1 s until busy=false, then do a final syncFromServer().
+ */
 export class DocIndexService {
   private index: Record<string, DocRecord> = {}
-  private pollingTimer: ReturnType<typeof setTimeout> | null = null
   private saveTimer: ReturnType<typeof setTimeout> | null = null
+  private pipelineTimer: ReturnType<typeof setTimeout> | null = null
   private onUpdate: (() => void) | null = null
   private readonly statusFilePath: string
 
@@ -34,12 +42,14 @@ export class DocIndexService {
   }
 
   // ---------------------------------------------------------------------------
-  // Persistence — separate JSON file, independent of data.json
+  // Persistence
   // ---------------------------------------------------------------------------
 
   async load(): Promise<void> {
     try {
-      const exists = await this.plugin.app.vault.adapter.exists(this.statusFilePath)
+      const exists = await this.plugin.app.vault.adapter.exists(
+        this.statusFilePath,
+      )
       if (exists) {
         const raw = await this.plugin.app.vault.adapter.read(this.statusFilePath)
         this.index = JSON.parse(raw) as Record<string, DocRecord>
@@ -81,11 +91,11 @@ export class DocIndexService {
   }
 
   /**
-   * Returns true if this file should be sent to LightRAG right now.
-   * - unknown  → yes (never ingested)
-   * - processing → no (already in the pipeline)
-   * - failed  → no (user triggers manually via context menu)
-   * - processed → only if the file was modified after last ingest
+   * Returns true if this file should be submitted to LightRAG right now.
+   * - unknown     → yes (never ingested)
+   * - processing  → no  (already in the pipeline)
+   * - failed      → no  (user triggers via context menu)
+   * - processed   → only if mtime is newer than last ingest
    */
   needsIngestion(vaultPath: string, currentMtime: number): boolean {
     const rec = this.index[vaultPath]
@@ -99,7 +109,6 @@ export class DocIndexService {
     this.index[vaultPath] = { status: 'processing', mtime }
     this.notify()
     this.scheduleSave()
-    this.ensurePolling()
   }
 
   setProcessed(vaultPath: string, docId?: string): void {
@@ -136,16 +145,100 @@ export class DocIndexService {
   }
 
   // ---------------------------------------------------------------------------
+  // HTTP helpers
+  // ---------------------------------------------------------------------------
+
+  private getHeaders(): Record<string, string> {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (this.plugin.settings.lightRagApiKey) {
+      h['Authorization'] = `Bearer ${this.plugin.settings.lightRagApiKey}`
+    }
+    return h
+  }
+
+  /** Returns true if the LightRAG server responds to /health. */
+  async isServerOnline(): Promise<boolean> {
+    try {
+      const res = await requestUrl({
+        url: `${this.plugin.settings.lightRagServerUrl}/health`,
+        method: 'GET',
+        headers: this.getHeaders(),
+        throw: false,
+      })
+      return res.status === 200
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Fetch ALL documents from LightRAG using POST /documents/paginated.
+   * This endpoint reliably includes `file_path` in every document record.
+   * Handles pagination automatically. Returns [] on error.
+   */
+  private async fetchAllDocs(): Promise<LRDoc[]> {
+    const baseUrl = this.plugin.settings.lightRagServerUrl
+    const headers = this.getHeaders()
+    const all: LRDoc[] = []
+    const pageSize = 200
+    let page = 1
+
+    for (;;) {
+      let res
+      try {
+        res = await requestUrl({
+          url: `${baseUrl}/documents/paginated`,
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            page,
+            page_size: pageSize,
+            sort_field: 'file_path',
+            sort_direction: 'asc',
+          }),
+          throw: false,
+        })
+      } catch {
+        break
+      }
+
+      if (res.status >= 400) break
+
+      const data = res.json as { total?: number; documents?: LRDoc[] }
+      const docs = data.documents ?? []
+      all.push(...docs)
+
+      // Stop when we get a partial page (last page)
+      if (docs.length < pageSize) break
+      page++
+    }
+
+    return all
+  }
+
+  private mapStatus(s: string): DocStatus {
+    if (s === 'PROCESSED') return 'processed'
+    if (s === 'FAILED') return 'failed'
+    return 'processing' // PENDING | PROCESSING | PREPROCESSED
+  }
+
+  // ---------------------------------------------------------------------------
   // Server sync
   // ---------------------------------------------------------------------------
 
-  /** Fetch LightRAG document list and reconcile with watched-folder files. */
+  /**
+   * Fetch the full document list from LightRAG (paginated endpoint) and
+   * reconcile it with every file inside the watched folder.
+   * Does nothing silently if the server is unreachable or the graph is empty.
+   */
   async syncFromServer(): Promise<void> {
     const syncFolder = this.plugin.settings.lightRagSyncFolder.trim()
     if (!syncFolder) return
 
     try {
       const docs = await this.fetchAllDocs()
+      if (docs.length === 0) return // Server offline or empty graph — keep cache
+
       const files = this.plugin.app.vault
         .getFiles()
         .filter(
@@ -153,109 +246,94 @@ export class DocIndexService {
         )
 
       for (const file of files) {
-        const lgDoc = docs.find(
-          (d) => d.file_path === file.path || d.file_path === file.name,
-        )
+        // Match strategies (in priority order):
+        //   1. Exact vault-relative path  (text files submitted with file.path)
+        //   2. Bare filename              (binary uploads via multipart)
+        //   3. Partial suffix match       (e.g. LightRAG prepends a base dir)
+        const lgDoc =
+          docs.find((d) => d.file_path === file.path) ??
+          docs.find((d) => d.file_path === file.name) ??
+          docs.find((d) => d.file_path?.endsWith('/' + file.name))
 
-        if (!lgDoc) {
-          // Not found in LightRAG — don't overwrite a processing state
-          if (
-            !this.index[file.path] ||
-            this.index[file.path].status !== 'processing'
-          ) {
-            this.index[file.path] = this.index[file.path] ?? { status: 'unknown' }
-          }
-        } else {
+        if (lgDoc) {
+          const newStatus = this.mapStatus(lgDoc.status)
           this.index[file.path] = {
             ...this.index[file.path],
-            status: this.mapStatus(lgDoc.status),
+            status: newStatus,
             docId: lgDoc.id,
+          }
+        } else {
+          // Not found on LightRAG server:
+          //   - 'processing': keep it (might still be queued, not yet visible)
+          //   - everything else: reset to unknown so the user knows it needs ingest
+          const current = this.index[file.path]?.status
+          if (current !== 'processing') {
+            this.index[file.path] = { status: 'unknown' }
           }
         }
       }
 
       this.scheduleSave()
       this.notify()
-      this.ensurePolling()
     } catch {
-      // Server not available — use cached index silently
+      // Server not available — keep cached index silently
     }
-  }
-
-  private async fetchAllDocs(): Promise<LRDoc[]> {
-    // GET /documents returns all docs grouped by status (up to 1000).
-    // Simpler and more reliable than POST /documents/paginated.
-    const url = `${this.plugin.settings.lightRagServerUrl}/documents`
-    const headers: Record<string, string> = {}
-    if (this.plugin.settings.lightRagApiKey) {
-      headers['Authorization'] = `Bearer ${this.plugin.settings.lightRagApiKey}`
-    }
-    const res = await requestUrl({ url, method: 'GET', headers, throw: false })
-    if (res.status >= 400) return []
-
-    // Response shape: { PENDING: [...], PROCESSING: [...], PROCESSED: [...], FAILED: [...], PREPROCESSED: [...] }
-    const data = res.json as Record<string, LRDoc[]>
-    const all: LRDoc[] = []
-    for (const bucket of Object.values(data)) {
-      if (Array.isArray(bucket)) all.push(...bucket)
-    }
-    return all
-  }
-
-  private mapStatus(s: LRStatus): DocStatus {
-    if (s === 'PROCESSED') return 'processed'
-    if (s === 'FAILED') return 'failed'
-    return 'processing'
   }
 
   // ---------------------------------------------------------------------------
-  // Polling for in-flight documents
+  // Pipeline watch — polls every N ms until busy=false, then syncs
   // ---------------------------------------------------------------------------
 
-  private ensurePolling(): void {
-    if (this.pollingTimer) return
-    this.scheduleNextPoll()
+  /**
+   * Poll GET /documents/pipeline_status every `intervalMs` milliseconds.
+   * Stops automatically when the server reports busy=false, then calls
+   * syncFromServer() to read the definitive statuses.
+   *
+   * Any previous pipeline watch is cancelled before starting the new one.
+   * Call after submitting any file to LightRAG.
+   */
+  startPipelineWatch(intervalMs = 1000): void {
+    this.stopPipelineWatch()
+    this.schedulePipelinePoll(intervalMs)
   }
 
-  private scheduleNextPoll(): void {
-    const hasProcessing = Object.values(this.index).some(
-      (r) => r.status === 'processing',
-    )
-    if (!hasProcessing) return
-
-    this.pollingTimer = setTimeout(() => {
-      this.pollingTimer = null
-      void this.doPoll()
-    }, 5000)
+  private schedulePipelinePoll(intervalMs: number): void {
+    this.pipelineTimer = setTimeout(() => {
+      this.pipelineTimer = null
+      void this.doPipelinePoll(intervalMs)
+    }, intervalMs)
   }
 
-  private async doPoll(): Promise<void> {
-    const processingPaths = Object.entries(this.index)
-      .filter(([, r]) => r.status === 'processing')
-      .map(([p]) => p)
-
-    if (processingPaths.length === 0) return
-
+  private async doPipelinePoll(intervalMs: number): Promise<void> {
     try {
-      const docs = await this.fetchAllDocs()
-      for (const vaultPath of processingPaths) {
-        const fileName = vaultPath.split('/').pop() ?? vaultPath
-        const doc = docs.find(
-          (d) => d.file_path === vaultPath || d.file_path === fileName,
-        )
-        if (!doc) continue
+      const res = await requestUrl({
+        url: `${this.plugin.settings.lightRagServerUrl}/documents/pipeline_status`,
+        method: 'GET',
+        headers: this.getHeaders(),
+        throw: false,
+      })
 
-        const newStatus = this.mapStatus(doc.status)
-        if (newStatus !== 'processing') {
-          if (newStatus === 'processed') this.setProcessed(vaultPath, doc.id)
-          else this.setFailed(vaultPath)
+      if (res.status === 200) {
+        const data = res.json as { busy?: boolean }
+        if (data.busy === false) {
+          // Pipeline finished — sync definitive statuses from LightRAG
+          await this.syncFromServer()
+          return // Do NOT reschedule — watch is complete
         }
       }
     } catch {
-      // Server unavailable — retry next cycle
+      // Server temporarily unreachable — keep polling
     }
 
-    this.scheduleNextPoll()
+    // Pipeline still busy or server unreachable — schedule next poll
+    this.schedulePipelinePoll(intervalMs)
+  }
+
+  stopPipelineWatch(): void {
+    if (this.pipelineTimer) {
+      clearTimeout(this.pipelineTimer)
+      this.pipelineTimer = null
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -263,10 +341,7 @@ export class DocIndexService {
   // ---------------------------------------------------------------------------
 
   destroy(): void {
-    if (this.pollingTimer) {
-      clearTimeout(this.pollingTimer)
-      this.pollingTimer = null
-    }
+    this.stopPipelineWatch()
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
