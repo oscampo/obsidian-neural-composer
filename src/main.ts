@@ -651,20 +651,25 @@ export default class NeuralComposerPlugin extends Plugin {
       // Primera revisión inmediata
       void this.checkAndUpdateStatus()
 
-      // Initialize doc index service
+      // Initialize doc index service + file explorer decoration
       this.docIndexService = new DocIndexService(this)
-      this.fileExplorerDecorator = new FileExplorerDecorator(
-        this.app,
-        this.docIndexService,
-        () => this.settings.lightRagSyncFolder,
+      this.fileExplorerDecorator = new FileExplorerDecorator(this.app)
+      this.docIndexService.setUpdateCallback(() => this.decorateFileExplorer())
+
+      // Re-decorate whenever the workspace layout changes (pane open/close, etc.)
+      this.registerEvent(
+        this.app.workspace.on('layout-change', () => {
+          this.decorateFileExplorer()
+        }),
       )
-      this.docIndexService.setDecorator(
-        () => this.fileExplorerDecorator?.decorateAll(),
-        (path) => this.fileExplorerDecorator?.refreshFile(path),
-      )
-      this.fileExplorerDecorator.start()
-      // Sync with server after a short delay (give server time to start)
-      setTimeout(() => void this.docIndexService?.syncFromServer(), 3000)
+
+      // Load persisted index, decorate immediately, then sync with server
+      void (async () => {
+        await this.docIndexService!.load()
+        this.decorateFileExplorer()
+        // Give the server 3 s to start before querying statuses
+        setTimeout(() => void this.docIndexService?.syncFromServer(), 3000)
+      })()
     })
   }
 
@@ -813,9 +818,18 @@ export default class NeuralComposerPlugin extends Plugin {
     }
     this.docIndexService?.destroy()
     this.docIndexService = null
-    this.fileExplorerDecorator?.stop()
+    this.fileExplorerDecorator?.clear()
     this.fileExplorerDecorator = null
     this.stopLightRagServer()
+  }
+
+  /** Apply data-nc-status attributes to files in the watched folder. No DOM injection. */
+  private decorateFileExplorer(): void {
+    if (!this.fileExplorerDecorator || !this.docIndexService) return
+    const syncFolder = this.settings.lightRagSyncFolder.trim()
+    this.fileExplorerDecorator.decorate(syncFolder, (path) =>
+      this.docIndexService!.getStatus(path),
+    )
   }
 
   public stopLightRagServer() {

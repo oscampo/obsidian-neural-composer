@@ -18,22 +18,59 @@ interface LRDoc {
 }
 
 export class DocIndexService {
+  private index: Record<string, DocRecord> = {}
   private pollingTimer: ReturnType<typeof setTimeout> | null = null
   private saveTimer: ReturnType<typeof setTimeout> | null = null
-  private onDecorateAll: (() => void) | null = null
-  private onRefreshFile: ((path: string) => void) | null = null
+  private onUpdate: (() => void) | null = null
+  private readonly statusFilePath: string
 
-  constructor(private plugin: NeuralComposerPlugin) {}
-
-  setDecorator(decorateAll: () => void, refreshFile: (path: string) => void) {
-    this.onDecorateAll = decorateAll
-    this.onRefreshFile = refreshFile
+  constructor(private plugin: NeuralComposerPlugin) {
+    this.statusFilePath = `.obsidian/plugins/${plugin.manifest.id}/doc-status.json`
   }
 
-  private get index(): Record<string, DocRecord> {
-    if (!this.plugin.settings.docIndex) this.plugin.settings.docIndex = {}
-    return this.plugin.settings.docIndex
+  /** Register a callback invoked whenever any status changes (for re-decoration). */
+  setUpdateCallback(fn: () => void): void {
+    this.onUpdate = fn
   }
+
+  // ---------------------------------------------------------------------------
+  // Persistence — separate JSON file, independent of data.json
+  // ---------------------------------------------------------------------------
+
+  async load(): Promise<void> {
+    try {
+      const exists = await this.plugin.app.vault.adapter.exists(this.statusFilePath)
+      if (exists) {
+        const raw = await this.plugin.app.vault.adapter.read(this.statusFilePath)
+        this.index = JSON.parse(raw) as Record<string, DocRecord>
+      }
+    } catch {
+      this.index = {}
+    }
+  }
+
+  private async persist(): Promise<void> {
+    try {
+      await this.plugin.app.vault.adapter.write(
+        this.statusFilePath,
+        JSON.stringify(this.index, null, 2),
+      )
+    } catch (e) {
+      console.error('[NeuralComposer] DocIndex: failed to save status file', e)
+    }
+  }
+
+  private scheduleSave(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer)
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null
+      void this.persist()
+    }, 2000)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public status API
+  // ---------------------------------------------------------------------------
 
   getStatus(vaultPath: string): DocStatus {
     return this.index[vaultPath]?.status ?? 'unknown'
@@ -43,19 +80,24 @@ export class DocIndexService {
     return this.index[vaultPath]?.mtime
   }
 
-  /** Returns true if this file should be (re-)ingested right now. */
+  /**
+   * Returns true if this file should be sent to LightRAG right now.
+   * - unknown  → yes (never ingested)
+   * - processing → no (already in the pipeline)
+   * - failed  → no (user triggers manually via context menu)
+   * - processed → only if the file was modified after last ingest
+   */
   needsIngestion(vaultPath: string, currentMtime: number): boolean {
     const rec = this.index[vaultPath]
     if (!rec || rec.status === 'unknown') return true
-    if (rec.status === 'processing') return false // already in pipeline
-    if (rec.status === 'failed') return false     // manual retry only
-    // processed: re-ingest only if the file has changed
+    if (rec.status === 'processing') return false
+    if (rec.status === 'failed') return false
     return rec.mtime !== undefined && currentMtime > rec.mtime
   }
 
   setProcessing(vaultPath: string, mtime: number): void {
     this.index[vaultPath] = { status: 'processing', mtime }
-    this.onRefreshFile?.(vaultPath)
+    this.notify()
     this.scheduleSave()
     this.ensurePolling()
   }
@@ -63,20 +105,20 @@ export class DocIndexService {
   setProcessed(vaultPath: string, docId?: string): void {
     const rec = this.index[vaultPath] ?? {}
     this.index[vaultPath] = { ...rec, status: 'processed', docId }
-    this.onRefreshFile?.(vaultPath)
+    this.notify()
     this.scheduleSave()
   }
 
   setFailed(vaultPath: string): void {
     const rec = this.index[vaultPath] ?? {}
     this.index[vaultPath] = { ...rec, status: 'failed' }
-    this.onRefreshFile?.(vaultPath)
+    this.notify()
     this.scheduleSave()
   }
 
   removeEntry(vaultPath: string): void {
     delete this.index[vaultPath]
-    this.onRefreshFile?.(vaultPath)
+    this.notify()
     this.scheduleSave()
   }
 
@@ -84,12 +126,20 @@ export class DocIndexService {
     if (this.index[oldPath]) {
       this.index[newPath] = this.index[oldPath]
       delete this.index[oldPath]
-      this.onRefreshFile?.(newPath)
+      this.notify()
       this.scheduleSave()
     }
   }
 
-  /** Fetch LightRAG document list and reconcile with vault files in watched folder. */
+  private notify(): void {
+    this.onUpdate?.()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Server sync
+  // ---------------------------------------------------------------------------
+
+  /** Fetch LightRAG document list and reconcile with watched-folder files. */
   async syncFromServer(): Promise<void> {
     const syncFolder = this.plugin.settings.lightRagSyncFolder.trim()
     if (!syncFolder) return
@@ -108,9 +158,12 @@ export class DocIndexService {
         )
 
         if (!lgDoc) {
-          // Not yet in LightRAG — only reset if not already tracked as processing
-          if (!this.index[file.path] || this.index[file.path].status !== 'processing') {
-            this.index[file.path] = { status: 'unknown' }
+          // Not found in LightRAG — don't overwrite a processing state
+          if (
+            !this.index[file.path] ||
+            this.index[file.path].status !== 'processing'
+          ) {
+            this.index[file.path] = this.index[file.path] ?? { status: 'unknown' }
           }
         } else {
           this.index[file.path] = {
@@ -122,10 +175,10 @@ export class DocIndexService {
       }
 
       this.scheduleSave()
-      this.onDecorateAll?.()
+      this.notify()
       this.ensurePolling()
     } catch {
-      // Server not available — use cached index
+      // Server not available — use cached index silently
     }
   }
 
@@ -153,6 +206,10 @@ export class DocIndexService {
     return 'processing'
   }
 
+  // ---------------------------------------------------------------------------
+  // Polling for in-flight documents
+  // ---------------------------------------------------------------------------
+
   private ensurePolling(): void {
     if (this.pollingTimer) return
     this.scheduleNextPoll()
@@ -179,8 +236,6 @@ export class DocIndexService {
 
     try {
       const docs = await this.fetchAllDocs()
-      let changed = false
-
       for (const vaultPath of processingPaths) {
         const fileName = vaultPath.split('/').pop() ?? vaultPath
         const doc = docs.find(
@@ -192,25 +247,18 @@ export class DocIndexService {
         if (newStatus !== 'processing') {
           if (newStatus === 'processed') this.setProcessed(vaultPath, doc.id)
           else this.setFailed(vaultPath)
-          changed = true
         }
       }
-
-      if (changed) this.onDecorateAll?.()
     } catch {
-      // Server unavailable
+      // Server unavailable — retry next cycle
     }
 
     this.scheduleNextPoll()
   }
 
-  private scheduleSave(): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer)
-    this.saveTimer = setTimeout(() => {
-      this.saveTimer = null
-      void this.plugin.saveData(this.plugin.settings)
-    }, 3000)
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   destroy(): void {
     if (this.pollingTimer) {
@@ -220,7 +268,8 @@ export class DocIndexService {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
-      void this.plugin.saveData(this.plugin.settings)
+      void this.persist()
     }
+    this.onUpdate = null
   }
 }
