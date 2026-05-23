@@ -117,17 +117,6 @@ export function ServerActionsSection({
           }),
       )
 
-    // 3. Reprocess failed documents
-    new Setting(container)
-      .setName('Reprocess failed documents')
-      .setDesc(
-        'Re-submits any documents that failed entity extraction (e.g. after fixing the LLM configuration). The server must be running.',
-      )
-      .addButton((button) =>
-        button.setButtonText('Reprocess failed').onClick(() => {
-          void plugin.reprocessFailedDocuments()
-        }),
-      )
   }, [settings, plugin, app])
 
   return (

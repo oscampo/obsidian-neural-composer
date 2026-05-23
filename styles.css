@@ -2841,3 +2841,34 @@ button.nrlcmp-chat-input-model-select {
   padding: 20px 28px 32px 40px;
   max-width: 780px;
 }
+
+/* ── Document status dots in file explorer ───────────────────────── */
+.nc-doc-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 5px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.nc-doc-dot--processed {
+  background: #22c55e;
+}
+
+.nc-doc-dot--processing {
+  background: #f59e0b;
+  animation: nc-doc-pulse 1.5s ease-in-out infinite;
+}
+
+.nc-doc-dot--failed {
+  background: #ef4444;
+}
+
+@keyframes nc-doc-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
