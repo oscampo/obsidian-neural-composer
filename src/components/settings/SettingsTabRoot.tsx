@@ -6,18 +6,26 @@ import NeuralComposerPlugin from '../../main'
 import { BrainCircuit } from '../../utils/icons'
 
 import { ChatSection } from './sections/ChatSection'
-import { EtcSection } from './sections/EtcSection'
+import { HelpSection } from './sections/HelpSection'
 import { McpSection } from './sections/McpSection'
 import { ModelsSection } from './sections/ModelsSection'
 import { NeuralSection } from './sections/NeuralSection'
 import { ProvidersSection } from './sections/ProvidersSection'
+import { ServerActionsSection } from './sections/ServerActionsSection'
 import { TemplateSection } from './sections/TemplateSection'
 
 // ---------------------------------------------------------------------------
 // Types & constants
 // ---------------------------------------------------------------------------
 
-type TabId = 'providers' | 'models' | 'chat' | 'graph' | 'tools' | 'advanced'
+type TabId =
+  | 'providers'
+  | 'models'
+  | 'chat'
+  | 'graph'
+  | 'tools'
+  | 'advanced'
+  | 'help'
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'providers', label: 'Providers', icon: 'key' },
@@ -26,13 +34,14 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'graph', label: 'Graph & Vault', icon: 'graph' },
   { id: 'tools', label: 'Tools (MCP)', icon: 'wrench' },
   { id: 'advanced', label: 'Advanced', icon: 'gear' },
+  // help sits at the bottom of the rail, separated by a spacer
+  { id: 'help', label: 'Help', icon: 'help' },
 ]
 
 const LS_KEY = 'neural-composer-settings-active-tab'
 
 // ---------------------------------------------------------------------------
-// Brand logo tile  — violet rounded square with brain-circuit glyph inside
-// (matches the actual plugin icon shown in Obsidian's sidebar)
+// Brand logo tile — violet rounded square with brain-circuit glyph inside
 // ---------------------------------------------------------------------------
 
 function BrainLogoTile({ size = 40 }: { size?: number }) {
@@ -61,10 +70,31 @@ function BrainLogoTile({ size = 40 }: { size?: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Rail SVG icons — minimal inline paths matching the design's Icon component
+// Rail SVG icons — minimal inline paths matching v1/shared.jsx design tokens
 // ---------------------------------------------------------------------------
 
-function RailIcon({ name, size = 17 }: { name: string; size?: number }) {
+function RailIcon({ name, size = 15 }: { name: string; size?: number }) {
+  // 'help' needs both a circle and a path — handle specially
+  if (name === 'help') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="8" cy="8" r="6" />
+        <path d="M6.5 6.3a1.5 1.5 0 1 1 2.25 1.3L8 9.2" />
+        <circle cx="8" cy="11.2" r=".6" fill="currentColor" stroke="none" />
+      </svg>
+    )
+  }
+
   const paths: Record<string, string> = {
     key: 'M10.5 5.5a3 3 0 1 1-1.06 2.31L3 14.25V11l1.25-1.25H7v-2h2v-2L10.5 5.5z',
     cpu: 'M5 5h6v6H5zM3 6.5v3M3 10.5v.5M3 5h.5M13 6.5v3M13 10.5v.5M13 5h-.5M6.5 3v.5M9.5 3v.5M6.5 13v-.5M9.5 13v-.5',
@@ -75,6 +105,7 @@ function RailIcon({ name, size = 17 }: { name: string; size?: number }) {
       'M11.5 4.5a2.5 2.5 0 0 1-3 3l-4.5 4.5L3 11l4.5-4.5a2.5 2.5 0 0 1 3-3l-1.25 1.25.75.75.75.75z',
     gear: 'M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM8 2.5v1.5M8 12v1.5M13.5 8H12M4 8H2.5M11.5 4.5L10.5 5.5M5.5 10.5L4.5 11.5M11.5 11.5L10.5 10.5M5.5 5.5L4.5 4.5',
   }
+
   return (
     <svg
       width={size}
@@ -150,7 +181,7 @@ function ProviderChip({
 }
 
 // ---------------------------------------------------------------------------
-// Command bar components
+// Command bar
 // ---------------------------------------------------------------------------
 
 function QuickSlot({
@@ -191,7 +222,7 @@ function QuickSlot({
           {short}
         </div>
       </div>
-      {/* chevron-down inline SVG — avoids an extra Lucide import */}
+      {/* chevron-down */}
       <svg
         width={11}
         height={11}
@@ -210,11 +241,7 @@ function QuickSlot({
   )
 }
 
-function CommandBar({
-  onModelsClick,
-}: {
-  onModelsClick: () => void
-}) {
+function CommandBar({ onModelsClick }: { onModelsClick: () => void }) {
   const { settings } = useSettings()
 
   return (
@@ -249,32 +276,27 @@ function CommandBar({
         onClick={onModelsClick}
       />
 
-      {/* LightRAG status pill — static green, polling deferred */}
-      <div
+      {/* Ko-fi support button */}
+      <button
+        onClick={() => window.open('https://ko-fi.com/oscampo', '_blank')}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 6,
+          gap: 5,
           padding: '4px 10px',
           borderRadius: 999,
-          background: 'rgba(63,185,80,0.14)',
-          color: '#3fb950',
+          background: 'rgba(255,94,91,0.12)',
+          color: '#FF5E5B',
           fontSize: 11.5,
           fontWeight: 500,
+          border: 'none',
+          cursor: 'pointer',
           flexShrink: 0,
         }}
+        title="Support Neural Composer on Ko-fi"
       >
-        <span
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: '#3fb950',
-            flexShrink: 0,
-          }}
-        />
-        LightRAG
-      </div>
+        ☕ Ko-fi
+      </button>
     </div>
   )
 }
@@ -310,7 +332,11 @@ function TabHeader({ title, sub }: { title: string; sub?: string }) {
         {title}
         {sub && (
           <span
-            style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 20 }}
+            style={{
+              color: 'var(--text-muted)',
+              fontWeight: 500,
+              fontSize: 20,
+            }}
           >
             {' '}
             {sub}
@@ -359,7 +385,17 @@ function TabContent({
     case 'tools':
       return wrap('Tools', <McpSection app={app} plugin={plugin} />, '· MCP')
     case 'advanced':
-      return wrap('Advanced', <EtcSection app={app} plugin={plugin} />)
+      return wrap(
+        'Advanced',
+        <ServerActionsSection app={app} plugin={plugin} />,
+      )
+    case 'help':
+      return (
+        <div className="nc-tab-content">
+          <TabHeader title="Help" />
+          <HelpSection app={app} plugin={plugin} />
+        </div>
+      )
   }
 }
 
@@ -393,12 +429,22 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
     }
   }, [])
 
+  // Split tabs: main group (first 6) and bottom help tab
+  const mainTabs = TABS.slice(0, 6)
+  const bottomTabs = TABS.slice(6)
+
   return (
     <div
       ref={rootRef}
       style={{
+        /* Use absolute positioning so nc-root fills the host container
+           regardless of its padding — fixes the left-edge gap */
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         display: 'flex',
-        height: '100%',
         minHeight: 520,
         background: 'var(--background-primary)',
         fontFamily: 'var(--font-interface)',
@@ -407,66 +453,133 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
       {/* ── Icon nav rail ─────────────────────────────────────────────── */}
       <div
         style={{
-          width: 64,
+          width: 56,
           flexShrink: 0,
           background: 'var(--background-secondary-alt)',
           borderRight: '1px solid var(--background-modifier-border)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          padding: '14px 0',
-          gap: 6,
+          padding: '12px 0',
         }}
       >
         {/* Brand logo tile */}
-        <div style={{ marginBottom: 14 }}>
-          <BrainLogoTile size={40} />
+        <div style={{ marginBottom: 12 }}>
+          <BrainLogoTile size={36} />
         </div>
 
-        {/* Tab buttons */}
-        {TABS.map((t) => {
-          const sel = activeTab === t.id
-          return (
-            <button
-              key={t.id}
-              onClick={() => switchTab(t.id)}
-              title={t.label}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 10,
-                border: 'none',
-                background: sel
-                  ? 'color-mix(in srgb, var(--interactive-accent) 16%, transparent)'
-                  : 'transparent',
-                color: sel ? 'var(--interactive-accent)' : 'var(--text-muted)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                transition: 'background 0.12s, color 0.12s',
-                boxShadow: 'none',
-                padding: 0,
-              }}
-            >
-              <RailIcon name={t.icon} size={17} />
-              {sel && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    left: -8,
-                    top: 10,
-                    bottom: 10,
-                    width: 3,
-                    background: 'var(--interactive-accent)',
-                    borderRadius: 3,
-                  }}
-                />
-              )}
-            </button>
-          )
-        })}
+        {/* Main tab buttons */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2,
+            flex: 1,
+          }}
+        >
+          {mainTabs.map((t) => {
+            const sel = activeTab === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => switchTab(t.id)}
+                title={t.label}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  border: 'none',
+                  background: sel
+                    ? 'color-mix(in srgb, var(--interactive-accent) 16%, transparent)'
+                    : 'transparent',
+                  color: sel
+                    ? 'var(--interactive-accent)'
+                    : 'var(--text-faint)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  transition: 'background 0.12s, color 0.12s',
+                  boxShadow: 'none',
+                  padding: 0,
+                }}
+              >
+                <RailIcon name={t.icon} size={15} />
+                {sel && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: -6,
+                      top: 8,
+                      bottom: 8,
+                      width: 2.5,
+                      background: 'var(--interactive-accent)',
+                      borderRadius: 2,
+                    }}
+                  />
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Bottom: help tab */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
+          {bottomTabs.map((t) => {
+            const sel = activeTab === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => switchTab(t.id)}
+                title={t.label}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  border: 'none',
+                  background: sel
+                    ? 'color-mix(in srgb, var(--interactive-accent) 16%, transparent)'
+                    : 'transparent',
+                  color: sel
+                    ? 'var(--interactive-accent)'
+                    : 'var(--text-faint)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  transition: 'background 0.12s, color 0.12s',
+                  boxShadow: 'none',
+                  padding: 0,
+                }}
+              >
+                <RailIcon name={t.icon} size={15} />
+                {sel && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: -6,
+                      top: 8,
+                      bottom: 8,
+                      width: 2.5,
+                      background: 'var(--interactive-accent)',
+                      borderRadius: 2,
+                    }}
+                  />
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* ── Right side: command bar + scrollable content ───────────────── */}

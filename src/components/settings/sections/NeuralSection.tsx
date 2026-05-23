@@ -507,7 +507,6 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
     container.createEl('h4', { text: 'Advanced configuration (total control)' })
 
     const details = container.createEl('details')
-    // Using class for cursor pointer instead of inline style
     const summary = details.createEl('summary', {
       text: 'Edit custom .env variables',
     })
@@ -530,7 +529,6 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
           .setPlaceholder(`${ADV_SETTINGS}`)
           .setValue(plugin.settings.lightRagCustomEnv)
           .onChange((value) => {
-            // Removed async
             void plugin.setSettings({
               ...plugin.settings,
               lightRagCustomEnv: value,
@@ -547,9 +545,7 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
       )
       .addButton((btn) =>
         btn.setButtonText('Insert template').onClick(() => {
-          // Removed async
           void (async () => {
-            // Wrapped
             if (plugin.settings.lightRagCustomEnv.length > 50) {
               new Notice('Overwriting existing custom configuration...')
             }
@@ -585,52 +581,7 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
         }),
       )
 
-    // 7. RESTART BUTTON (EMPHASIS)
-    new Setting(container)
-      .setName('Apply changes & restart')
-      .setDesc(
-        'You *must* restart the server after changing *any* setting above to apply the new configuration (.env).',
-      )
-      .setClass('nrlcmp-restart-setting')
-      .addButton((button) =>
-        button
-          .setButtonText('Restart server now')
-          .setCta()
-          .onClick(() => {
-            // Removed async completely as restartLightRagServer is void
-            new Notice('Restarting server...')
-            plugin.restartLightRagServer()
-          }),
-      )
-
-    // 8. ENV EDITOR MODAL
-    new Setting(container)
-      .setName('Server configuration')
-      .setDesc(
-        'Review the generated .env file, tweak advanced parameters, and restart the server.',
-      )
-      .addButton((button) =>
-        button
-          .setButtonText('Review .env & restart')
-          .setCta()
-          .onClick(() => {
-            new EnvEditorModal(plugin.app, plugin).open()
-          }),
-      )
-
-    // 9. REPROCESS FAILED DOCUMENTS
-    new Setting(container)
-      .setName('Reprocess failed documents')
-      .setDesc(
-        'Re-submits any documents that failed entity extraction (e.g. after fixing the LLM configuration). The server must be running.',
-      )
-      .addButton((button) =>
-        button.setButtonText('Reprocess failed').onClick(() => {
-          void plugin.reprocessFailedDocuments()
-        }),
-      )
-
-    // VISUALIZATION
+    // VISUALIZATION — Restart/server-config/reprocess moved to Advanced tab
     container.createEl('h4', { text: 'Visualization' })
 
     new Setting(container)

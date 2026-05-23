@@ -2798,10 +2798,13 @@ button.nrlcmp-chat-input-model-select {
    Only interactive / pseudo-class styles live here.
    =========================================================================== */
 
-/* Strip Obsidian's default containerEl padding so the layout fills the pane */
+/* Strip Obsidian's default containerEl padding so the layout fills the pane.
+   position:relative is required so nc-root (position:absolute) is anchored here. */
 .nc-settings-host {
   padding: 0 !important;
   overflow: hidden !important;
+  position: relative !important;
+  height: 100% !important;
 }
 
 /* Quick-slot pill buttons — hover state requires a CSS pseudo-class */
@@ -2827,8 +2830,8 @@ button.nrlcmp-chat-input-model-select {
   background: var(--background-modifier-hover);
 }
 
-/* Tab content padding — simpler to keep in CSS than repeat as inline style */
+/* Tab content padding — extra left breathing room between rail and text */
 .nc-tab-content {
-  padding: 20px 28px 32px;
+  padding: 20px 28px 32px 40px;
   max-width: 780px;
 }
