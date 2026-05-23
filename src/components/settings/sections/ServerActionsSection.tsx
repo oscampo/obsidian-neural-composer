@@ -52,12 +52,12 @@ export function ServerActionsSection({
       text: 'Advanced configuration (total control)',
     })
 
-    const details = container.createEl('details')
-    details.createEl('summary', { text: 'Edit custom .env variables' }).addClass(
-      'nrlcmp-cursor-pointer',
-    )
+    container.createEl('p', {
+      text: 'Edit custom .env variables',
+      cls: 'nrlcmp-env-subtitle',
+    })
 
-    const advancedContainer = details.createDiv({
+    const advancedContainer = container.createDiv({
       cls: 'nrlcmp-advanced-container',
     })
 

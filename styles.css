@@ -2630,11 +2630,17 @@ button.nrlcmp-chat-input-model-select {
   resize: vertical;
 }
 
+.nrlcmp-env-subtitle {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin: 4px 0 6px;
+}
+
 .nrlcmp-advanced-container {
   padding: 10px;
   background: var(--background-secondary);
   border-radius: 6px;
-  margin-top: 8px;
+  margin-top: 4px;
   border: 1px solid var(--background-modifier-border);
 }
 
