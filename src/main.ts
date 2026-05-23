@@ -716,6 +716,10 @@ export default class NeuralComposerPlugin extends Plugin {
             if (online) {
               await this.docIndexService?.syncFromServer()
               this.decorateFileExplorer()
+              // Always start pipeline watch after the initial sync:
+              // • If the pipeline is idle → one poll → busy=false → stops immediately
+              // • If docs are processing (from a previous session) → watches until done
+              this.docIndexService?.startPipelineWatch(2000)
             }
           })()
         }, 2000)
