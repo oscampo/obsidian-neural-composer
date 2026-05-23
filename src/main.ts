@@ -9,6 +9,8 @@ import {
   WorkspaceLeaf,
   setTooltip,
   Platform,
+  Menu,
+  TAbstractFile,
 } from 'obsidian'
 import type { ChildProcess } from 'child_process'
 import {
@@ -22,6 +24,8 @@ import { ChatProps } from './components/chat-view/Chat'
 import { APPLY_VIEW_TYPE, CHAT_VIEW_TYPE } from './constants'
 import { McpManager } from './core/mcp/mcpManager'
 import { RAGEngine } from './core/rag/ragEngine'
+import { DocIndexService } from './core/rag/docIndexService'
+import { FileExplorerDecorator } from './core/rag/fileExplorerDecorator'
 import { DatabaseManager } from './database/DatabaseManager'
 import {
   NeuralComposerSettings,
@@ -135,6 +139,9 @@ export default class NeuralComposerPlugin extends Plugin {
     new Map()
   private serverProcess: ChildProcess | null = null
   private lastErrorTime: number = 0
+  public docIndexService: DocIndexService | null = null
+  private fileExplorerDecorator: FileExplorerDecorator | null = null
+  private lastServerStatus: 'online' | 'offline' | 'busy' = 'offline'
 
   // Node.js modules — loaded lazily on desktop only, always null on mobile
   private _nodeFs: typeof import('fs') | null = null
@@ -383,12 +390,18 @@ export default class NeuralComposerPlugin extends Plugin {
         // Wait 2 s so the file content is available (especially for moves/imports)
         setTimeout(() => {
           void (async () => {
+            // Skip if already processed and not modified
+            if (this.docIndexService && !this.docIndexService.needsIngestion(file.path, file.stat.mtime)) {
+              return
+            }
             const notice = new Notice(
               `Graph sync: sending "${file.name}"...`,
               0,
             )
             const ragEngine = await this.getRAGEngine()
+            this.docIndexService?.setProcessing(file.path, file.stat.mtime)
             const ok = await ragEngine.ingestFile(file)
+            if (!ok) this.docIndexService?.setFailed(file.path)
             notice.setMessage(
               ok
                 ? `Graph sync: "${file.name}" sent — processing in background.`
@@ -414,6 +427,7 @@ export default class NeuralComposerPlugin extends Plugin {
             file.path,
             file.name,
           )
+          if (removed) this.docIndexService?.removeEntry(file.path)
           notice.setMessage(
             removed
               ? `Graph sync: "${file.name}" removed from graph.`
@@ -441,6 +455,7 @@ export default class NeuralComposerPlugin extends Plugin {
             )
             const oldName = oldPath.split('/').pop() ?? oldPath
             await ragEngine.deleteDocumentByFilePath(oldPath, oldName)
+            this.docIndexService?.renameEntry(oldPath, file.path)
             const ok = await ragEngine.ingestFile(file)
             notice.setMessage(
               ok
@@ -472,6 +487,8 @@ export default class NeuralComposerPlugin extends Plugin {
               0,
             )
             const ok = await ragEngine.ingestFile(file)
+            if (ok) this.docIndexService?.setProcessing(file.path, file.stat.mtime)
+            else this.docIndexService?.setFailed(file.path)
             notice.setMessage(
               ok
                 ? `Graph sync: "${file.name}" sent — processing in background.`
@@ -495,12 +512,18 @@ export default class NeuralComposerPlugin extends Plugin {
         const id = setTimeout(() => {
           this.modifyDebounceMap.delete(file.path)
           void (async () => {
+            // Skip if not modified since last ingestion
+            if (this.docIndexService && !this.docIndexService.needsIngestion(file.path, file.stat.mtime)) {
+              return
+            }
             const notice = new Notice(
               `Graph sync: re-indexing "${file.name}"...`,
               0,
             )
             const ragEngine = await this.getRAGEngine()
+            this.docIndexService?.setProcessing(file.path, file.stat.mtime)
             const ok = await ragEngine.reindexFile(file)
+            if (!ok) this.docIndexService?.setFailed(file.path)
             notice.setMessage(
               ok
                 ? `Graph sync: "${file.name}" sent — processing in background.`
@@ -511,6 +534,99 @@ export default class NeuralComposerPlugin extends Plugin {
         }, 5000)
         this.modifyDebounceMap.set(file.path, id)
       }),
+    )
+
+    // --- DOCUMENT STATUS CONTEXT MENUS ---
+    this.registerEvent(
+      this.app.workspace.on(
+        'file-menu',
+        (menu: Menu, file: TAbstractFile) => {
+          const syncFolder = this.settings.lightRagSyncFolder.trim()
+          if (!syncFolder || !this.docIndexService) return
+
+          if (file instanceof TFile) {
+            const inFolder =
+              file.path === syncFolder ||
+              file.path.startsWith(syncFolder + '/')
+            if (!inFolder) return
+
+            const status = this.docIndexService.getStatus(file.path)
+
+            if (status === 'failed' || status === 'unknown') {
+              menu.addItem((item) =>
+                item
+                  .setTitle('Reprocess document')
+                  .setIcon('refresh-cw')
+                  .onClick(() => {
+                    void (async () => {
+                      const ragEngine = await this.getRAGEngine()
+                      this.docIndexService!.setProcessing(
+                        file.path,
+                        file.stat.mtime,
+                      )
+                      const ok = await ragEngine.ingestFile(file)
+                      if (!ok) this.docIndexService!.setFailed(file.path)
+                    })()
+                  }),
+              )
+            }
+
+            if (status === 'processed') {
+              menu.addItem((item) =>
+                item
+                  .setTitle('Remove from graph')
+                  .setIcon('trash-2')
+                  .onClick(() => {
+                    void (async () => {
+                      const ragEngine = await this.getRAGEngine()
+                      await ragEngine.deleteDocumentByFilePath(
+                        file.path,
+                        file.name,
+                      )
+                      this.docIndexService!.removeEntry(file.path)
+                    })()
+                  }),
+              )
+            }
+
+            if (status === 'processing') {
+              menu.addItem((item) =>
+                item.setTitle('Processing… (in queue)').setDisabled(true),
+              )
+            }
+          }
+
+          if (file instanceof TFolder && file.path === syncFolder) {
+            menu.addItem((item) =>
+              item
+                .setTitle('Reprocess folder')
+                .setIcon('refresh-cw')
+                .onClick(() => {
+                  void (async () => {
+                    const ragEngine = await this.getRAGEngine()
+                    const files = this.app.vault
+                      .getFiles()
+                      .filter(
+                        (f) =>
+                          (f.path === syncFolder ||
+                            f.path.startsWith(syncFolder + '/')) &&
+                          SUPPORTED_EXTENSIONS.includes(
+                            f.extension.toLowerCase(),
+                          ),
+                      )
+                    for (const f of files) {
+                      const st = this.docIndexService!.getStatus(f.path)
+                      if (st === 'failed' || st === 'unknown') {
+                        this.docIndexService!.setProcessing(f.path, f.stat.mtime)
+                        void ragEngine.ingestFile(f)
+                      }
+                    }
+                  })()
+                }),
+            )
+          }
+        },
+      ),
     )
 
     this.addSettingTab(new NeuralComposerSettingTab(this.app, this))
@@ -534,6 +650,21 @@ export default class NeuralComposerPlugin extends Plugin {
 
       // Primera revisión inmediata
       void this.checkAndUpdateStatus()
+
+      // Initialize doc index service
+      this.docIndexService = new DocIndexService(this)
+      this.fileExplorerDecorator = new FileExplorerDecorator(
+        this.app,
+        this.docIndexService,
+        () => this.settings.lightRagSyncFolder,
+      )
+      this.docIndexService.setDecorator(
+        () => this.fileExplorerDecorator?.decorateAll(),
+        (path) => this.fileExplorerDecorator?.refreshFile(path),
+      )
+      this.fileExplorerDecorator.start()
+      // Sync with server after a short delay (give server time to start)
+      setTimeout(() => void this.docIndexService?.syncFromServer(), 3000)
     })
   }
 
@@ -680,6 +811,10 @@ export default class NeuralComposerPlugin extends Plugin {
       void this.mcpManager.cleanup()
       this.mcpManager = null
     }
+    this.docIndexService?.destroy()
+    this.docIndexService = null
+    this.fileExplorerDecorator?.stop()
+    this.fileExplorerDecorator = null
     this.stopLightRagServer()
   }
 
@@ -1497,6 +1632,10 @@ export default class NeuralComposerPlugin extends Plugin {
   }
 
   private updateStatusUI(status: 'online' | 'offline' | 'busy') {
+    if (status === 'online' && this.lastServerStatus !== 'online') {
+      void this.docIndexService?.syncFromServer()
+    }
+    this.lastServerStatus = status
     if (!this.statusDotEl) return
     this.statusDotEl.removeClass('is-online', 'is-offline', 'is-busy')
 

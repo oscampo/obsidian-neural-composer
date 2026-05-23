@@ -121,6 +121,18 @@ export const NeuralComposerSettingsSchema = z.object({
 
   // --- INCREMENTAL SYNC ---
   lightRagSyncFolder: z.string().catch(''),
+  // --- DOCUMENT STATUS INDEX ---
+  docIndex: z
+    .record(
+      z.object({
+        status: z
+          .enum(['processed', 'processing', 'failed', 'unknown'])
+          .catch('unknown'),
+        docId: z.string().optional(),
+        mtime: z.number().optional(),
+      }),
+    )
+    .catch({}),
   // ----------------------------------
 })
 
@@ -202,6 +214,7 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
   // DEFAULT NUEVO
   lightRagCustomEnv: '',
   lightRagSyncFolder: '',
+  docIndex: {},
 }
 
 export type SettingMigration = {
