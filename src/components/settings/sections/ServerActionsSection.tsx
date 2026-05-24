@@ -1,5 +1,5 @@
 import { App, Notice, Setting } from 'obsidian'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 import NeuralComposerPlugin from '../../../main'
 import { EnvEditorModal } from '../../modals/EnvEditorModal'
@@ -36,18 +36,17 @@ export function ServerActionsSection({
   plugin,
 }: ServerActionsSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [settings, setLocalSettings] = useState(plugin.settings)
-
-  useEffect(() => {
-    return plugin.addSettingsChangeListener(setLocalSettings)
-  }, [plugin])
 
   useEffect(() => {
     if (!containerRef.current) return
     containerRef.current.empty()
     const container = containerRef.current
 
-    // 1. Advanced configuration (total control) — env textarea
+    // Debounce timer for the env textarea — declared here so the cleanup
+    // function can cancel any pending save when the effect tears down.
+    let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+    // ── 1. Advanced configuration ─────────────────────────────────────────
     container.createEl('h4', {
       text: 'Advanced configuration (total control)',
     })
@@ -71,12 +70,23 @@ export function ServerActionsSection({
       .addTextArea((text) => {
         text
           .setPlaceholder(ADV_SETTINGS)
+          // Read current value directly from plugin (once, on mount).
+          // We intentionally do NOT track `settings` in the effect deps so
+          // that typing here never triggers a DOM rebuild and focus loss.
           .setValue(plugin.settings.lightRagCustomEnv)
           .onChange((value) => {
-            void plugin.setSettings({
-              ...plugin.settings,
-              lightRagCustomEnv: value,
-            })
+            // Debounce: persist to plugin settings only after 800 ms of
+            // inactivity.  This avoids calling setSettings() on every single
+            // keystroke, which would broadcast a settings-change event,
+            // cause parent components to re-render, and destroy this textarea.
+            if (saveTimer) clearTimeout(saveTimer)
+            saveTimer = setTimeout(() => {
+              saveTimer = null
+              void plugin.setSettings({
+                ...plugin.settings,
+                lightRagCustomEnv: value,
+              })
+            }, 800)
           })
         text.inputEl.addClass('nrlcmp-env-textarea')
       })
@@ -96,13 +106,15 @@ export function ServerActionsSection({
               ...plugin.settings,
               lightRagCustomEnv: ENV_TEMPLATE,
             })
+            // Sync the DOM value directly — the effect won't re-run so we
+            // must update the textarea imperatively.
             const ta = advancedContainer.querySelector('textarea')
             if (ta) ta.value = ENV_TEMPLATE
           })()
         }),
       )
 
-    // 2. Server configuration — Review .env & restart
+    // ── 2. Server configuration ───────────────────────────────────────────
     new Setting(container)
       .setName('Server configuration')
       .setDesc(
@@ -117,7 +129,17 @@ export function ServerActionsSection({
           }),
       )
 
-  }, [settings, plugin, app])
+    // Cleanup: cancel any pending save when the component unmounts.
+    return () => {
+      if (saveTimer) clearTimeout(saveTimer)
+    }
+    // Intentionally excludes `settings` from deps.
+    // Adding it would cause the effect to re-run on every save, which clears
+    // the DOM (container.empty()), destroys the textarea, and loses focus.
+    // The textarea value is read once at mount; subsequent persistence is
+    // handled by the debounced onChange above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plugin, app])
 
   return (
     <div className="nrlcmp-settings-section">
