@@ -440,36 +440,23 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
                 height: 40,
                 borderRadius: 8,
                 border: 'none',
-                background: sel
-                  ? 'color-mix(in srgb, var(--interactive-accent) 16%, transparent)'
-                  : 'transparent',
-                color: sel
-                  ? 'var(--interactive-accent)'
-                  : 'var(--text-faint)',
+                // Active → filled accent square + white icon (same as BrainLogoTile)
+                // Inactive → transparent bg + accent-coloured icon
+                background: sel ? 'var(--interactive-accent)' : 'transparent',
+                color: sel ? '#ffffff' : 'var(--interactive-accent)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
                 transition: 'background 0.12s, color 0.12s',
-                boxShadow: 'none',
+                boxShadow: sel
+                  ? '0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 14px rgba(0,0,0,0.28)'
+                  : 'none',
                 padding: 0,
               }}
             >
               <Icon size={15} strokeWidth={1.75} />
-              {sel && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    left: -6,
-                    top: 8,
-                    bottom: 8,
-                    width: 2.5,
-                    background: 'var(--interactive-accent)',
-                    borderRadius: 2,
-                  }}
-                />
-              )}
             </button>
           )
         })}
