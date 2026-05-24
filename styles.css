@@ -2881,6 +2881,11 @@ button.nrlcmp-chat-input-model-select {
   color: #22c55e;
 }
 
+.nc-version-badge--offline {
+  background: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #ef4444;
+}
+
 /* ── Document status dots in file explorer ───────────────────────── */
 /* CSS-only approach: dots rendered via ::before, no DOM injection.   */
 /* data-nc-status attribute is set/removed by FileExplorerDecorator.  */

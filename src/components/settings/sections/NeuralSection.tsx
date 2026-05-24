@@ -57,18 +57,23 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
   )
   const [useRemote, setUseRemote] = useState(plugin.settings.lightRagUseRemote)
 
-  /** Detected LightRAG version — updated whenever the health check fires. */
-  const [serverVersion, setServerVersion] = useState<string | null>(
-    () => plugin.lightRagServerVersion,
+  /**
+   * Server info state — { version, checked }
+   *   checked=false → first health check hasn't run yet → hide badge
+   *   checked=true, version=null → offline → red "offline" badge
+   *   checked=true, version='1.4.16' → online → green version badge
+   */
+  const [serverInfo, setServerInfo] = useState<{ version: string | null; checked: boolean }>(
+    () => ({ version: plugin.lightRagServerVersion, checked: plugin.lightRagServerChecked }),
   )
 
   useEffect(() => {
     return plugin.addSettingsChangeListener(setLocalSettings)
   }, [plugin])
 
-  // Subscribe to server version changes (populated by checkAndUpdateStatus)
+  // Subscribe to server version/status changes (populated by checkAndUpdateStatus)
   useEffect(() => {
-    return plugin.addVersionChangeListener(setServerVersion)
+    return plugin.addVersionChangeListener(setServerInfo)
   }, [plugin])
 
   useEffect(() => {
@@ -86,9 +91,15 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
       cls: 'nc-version-badge',
       attr: { 'data-nc-version': '' },
     })
-    if (plugin.lightRagServerVersion) {
-      versionBadge.textContent = `v${plugin.lightRagServerVersion}`
-      versionBadge.addClass('nc-version-badge--online')
+    // Render initial state (before the reactive effect runs)
+    if (plugin.lightRagServerChecked) {
+      if (plugin.lightRagServerVersion) {
+        versionBadge.textContent = `v${plugin.lightRagServerVersion}`
+        versionBadge.addClass('nc-version-badge--online')
+      } else {
+        versionBadge.textContent = 'offline'
+        versionBadge.addClass('nc-version-badge--offline')
+      }
     }
 
     // --- SERVER CONNECTION MODE ---
@@ -565,19 +576,30 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
       })
   }, [settings, currentRerankBinding, useCustomOntology, useRemote])
 
-  // Reactively update the version badge whenever the server version changes
+  // Reactively update the version badge on every server info change
   // without rebuilding the entire DOM (no focus loss, no flicker).
   useEffect(() => {
     const badge = settingsRef.current?.querySelector<HTMLElement>('[data-nc-version]')
     if (!badge) return
-    if (serverVersion) {
-      badge.textContent = `v${serverVersion}`
+
+    const { version, checked } = serverInfo
+
+    // Reset all state classes first
+    badge.classList.remove('nc-version-badge--online', 'nc-version-badge--offline')
+
+    if (!checked) {
+      // Health check hasn't run yet — hide badge completely
+      badge.textContent = ''
+    } else if (version) {
+      // Online with detected version
+      badge.textContent = `v${version}`
       badge.classList.add('nc-version-badge--online')
     } else {
-      badge.textContent = ''
-      badge.classList.remove('nc-version-badge--online')
+      // Checked and server is offline
+      badge.textContent = 'offline'
+      badge.classList.add('nc-version-badge--offline')
     }
-  }, [serverVersion])
+  }, [serverInfo])
 
   return <div ref={settingsRef} />
 }

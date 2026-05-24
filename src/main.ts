@@ -146,20 +146,33 @@ export default class NeuralComposerPlugin extends Plugin {
    *  events that fire during Obsidian startup from re-submitting already-ingested files. */
   private docIndexReady = false
 
-  /** Detected LightRAG core version (from GET /health → core_version). Null when offline. */
+  /** Detected LightRAG core version (from GET /health → core_version). Null when offline or not yet checked. */
   public lightRagServerVersion: string | null = null
-  private versionChangeListeners: Set<(v: string | null) => void> = new Set()
+  /** True once at least one health check has completed (distinguishes "not yet checked" from "offline"). */
+  public lightRagServerChecked = false
 
-  /** Subscribe to LightRAG server version changes. Returns an unsubscribe fn. */
-  addVersionChangeListener(fn: (v: string | null) => void): () => void {
+  private versionChangeListeners: Set<
+    (info: { version: string | null; checked: boolean }) => void
+  > = new Set()
+
+  /** Subscribe to LightRAG server version/status changes. Returns an unsubscribe fn. */
+  addVersionChangeListener(
+    fn: (info: { version: string | null; checked: boolean }) => void,
+  ): () => void {
     this.versionChangeListeners.add(fn)
     return () => this.versionChangeListeners.delete(fn)
   }
 
   private setServerVersion(v: string | null): void {
-    if (v === this.lightRagServerVersion) return
-    this.lightRagServerVersion = v
-    this.versionChangeListeners.forEach((fn) => fn(v))
+    const wasChecked = this.lightRagServerChecked
+    this.lightRagServerChecked = true
+    // Notify if: first health check (checked state just flipped) OR version changed
+    if (!wasChecked || v !== this.lightRagServerVersion) {
+      this.lightRagServerVersion = v
+      this.versionChangeListeners.forEach((fn) =>
+        fn({ version: v, checked: true }),
+      )
+    }
   }
 
   // Node.js modules — loaded lazily on desktop only, always null on mobile
@@ -1758,7 +1771,10 @@ export default class NeuralComposerPlugin extends Plugin {
       setTooltip(this.statusBarEl, `LightRAG${versionTag} · Processing…`)
     } else {
       this.statusDotEl.addClass('is-offline')
-      setTooltip(this.statusBarEl, 'LightRAG · Offline (click to restart)')
+      const offlineHint = this.isRemoteServer()
+        ? 'check remote server'
+        : 'click to restart'
+      setTooltip(this.statusBarEl, `LightRAG · Offline (${offlineHint})`)
     }
   }
 
