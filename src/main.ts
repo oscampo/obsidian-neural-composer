@@ -1765,16 +1765,16 @@ export default class NeuralComposerPlugin extends Plugin {
     const versionTag = this.lightRagServerVersion ? ` v${this.lightRagServerVersion}` : ''
     if (status === 'online') {
       this.statusDotEl.addClass('is-online')
-      setTooltip(this.statusBarEl, `LightRAG${versionTag} · Online`)
+      setTooltip(this.statusBarEl, `LightRAG${versionTag} · Online`, { placement: 'top' })
     } else if (status === 'busy') {
       this.statusDotEl.addClass('is-busy')
-      setTooltip(this.statusBarEl, `LightRAG${versionTag} · Processing…`)
+      setTooltip(this.statusBarEl, `LightRAG${versionTag} · Processing…`, { placement: 'top' })
     } else {
       this.statusDotEl.addClass('is-offline')
       const offlineHint = this.isRemoteServer()
         ? 'check remote server'
         : 'click to restart'
-      setTooltip(this.statusBarEl, `LightRAG · Offline (${offlineHint})`)
+      setTooltip(this.statusBarEl, `LightRAG · Offline (${offlineHint})`, { placement: 'top' })
     }
   }
 
