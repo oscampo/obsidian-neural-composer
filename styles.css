@@ -2879,49 +2879,38 @@ button.nrlcmp-chat-input-model-select {
   50%       { opacity: 0.35; }
 }
 
-/* ── Sidebar rail: tab icon theming ──────────────────────────────────────
-   Targets ALL workspace tab headers (sidebar panel tabs).
-   Scoped away from the main editor tabs by targeting the icon element
-   directly — the key difference between sidebar and editor tabs.
+/* ── Sidebar ribbon buttons: icon theming ────────────────────────────────
+   Targets ONLY the left-sidebar ribbon strip (.side-dock-ribbon-action).
+   Does NOT touch editor file tabs, file-explorer icons, or sidebar panel
+   switcher tabs — those all live in different DOM containers.
 
-   • Non-selected  → Obsidian classic purple/violet icon stroke
-   • Selected      → filled purple rounded square + white icon
-                     (same style as the brain-circuit ribbon button)
+   • Non-active  → Obsidian purple/violet stroke (matches theme accent)
+   • Active      → filled purple rounded square + white icon
+                   (same look as the brain-circuit ribbon button when open)
    ──────────────────────────────────────────────────────────────────────── */
 
-/* ── Non-selected sidebar tab icons: purple stroke ────────────────────── */
-.workspace-tab-header:not(.is-active) .workspace-tab-header-inner-icon {
-  color: var(--color-accent) !important;
-}
-.workspace-tab-header:not(.is-active) .workspace-tab-header-inner-icon svg {
-  color: var(--color-accent) !important;
-  stroke: var(--color-accent) !important;
-}
-
-/* ── Selected sidebar tab icon: filled purple rounded square ───────────── */
-.workspace-tab-header.is-active .workspace-tab-header-inner-icon {
-  background-color: var(--color-accent) !important;
-  border-radius: 6px !important;
-  padding: 4px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-.workspace-tab-header.is-active .workspace-tab-header-inner-icon svg {
-  color: #ffffff !important;
-  stroke: #ffffff !important;
-}
-
-/* ── Ribbon action buttons (brain-circuit + others): purple when idle ─── */
-/* The brain-circuit icon already has its own filled look; these rules     */
-/* make other ribbon buttons (non-active) use purple too.                  */
+/* Non-active ribbon buttons: accent-coloured icon */
 .side-dock-ribbon-action:not(.is-active) svg {
   color: var(--color-accent) !important;
   stroke: var(--color-accent) !important;
+  fill: none !important;
 }
 
-/* Smooth transition on state change */
-.workspace-tab-header-inner-icon,
-.workspace-tab-header-inner-icon svg {
-  transition: background-color 0.15s ease, color 0.15s ease, stroke 0.15s ease !important;
+/* Active ribbon button: filled accent rounded square + white icon */
+.side-dock-ribbon-action.is-active {
+  background-color: var(--color-accent) !important;
+  border-radius: 6px !important;
+}
+.side-dock-ribbon-action.is-active svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+
+/* Smooth transitions */
+.side-dock-ribbon-action {
+  transition: background-color 0.15s ease !important;
+}
+.side-dock-ribbon-action svg {
+  transition: color 0.15s ease, stroke 0.15s ease !important;
 }
