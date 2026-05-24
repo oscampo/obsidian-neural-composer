@@ -2878,3 +2878,62 @@ button.nrlcmp-chat-input-model-select {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.35; }
 }
+
+/* ── Sidebar rail: tab icon theming ──────────────────────────────────────
+   Applies to left & right sidebar panel tabs (NOT the main editor tabs).
+
+   • Non-selected  → Obsidian classic accent purple/violet icon stroke,
+                     consistent in both light and dark themes.
+   • Selected      → filled purple rounded background + white icon,
+                     matching the brain-circuit ribbon button visual style.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* ── Non-selected icons: purple/violet stroke ───────────────────────── */
+.workspace-split.mod-left-split
+  .workspace-tab-header:not(.is-active)
+  .workspace-tab-header-inner-icon,
+.workspace-split.mod-left-split
+  .workspace-tab-header:not(.is-active)
+  .workspace-tab-header-inner-icon svg,
+.workspace-split.mod-right-split
+  .workspace-tab-header:not(.is-active)
+  .workspace-tab-header-inner-icon,
+.workspace-split.mod-right-split
+  .workspace-tab-header:not(.is-active)
+  .workspace-tab-header-inner-icon svg {
+  color: var(--color-accent) !important;
+}
+
+/* ── Selected icon: filled purple rounded background ─────────────────── */
+.workspace-split.mod-left-split
+  .workspace-tab-header.is-active
+  .workspace-tab-header-inner-icon,
+.workspace-split.mod-right-split
+  .workspace-tab-header.is-active
+  .workspace-tab-header-inner-icon {
+  background-color: var(--color-accent) !important;
+  border-radius: 6px !important;
+  padding: 3px !important;
+  /* Ensure box-model consistency across Obsidian versions */
+  box-sizing: content-box !important;
+}
+
+/* ── Selected icon: white stroke on purple background ────────────────── */
+.workspace-split.mod-left-split
+  .workspace-tab-header.is-active
+  .workspace-tab-header-inner-icon svg,
+.workspace-split.mod-right-split
+  .workspace-tab-header.is-active
+  .workspace-tab-header-inner-icon svg {
+  color: #ffffff !important;
+}
+
+/* ── Smooth color transition on selection change ─────────────────────── */
+.workspace-split.mod-left-split .workspace-tab-header-inner-icon,
+.workspace-split.mod-right-split .workspace-tab-header-inner-icon {
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+.workspace-split.mod-left-split .workspace-tab-header-inner-icon svg,
+.workspace-split.mod-right-split .workspace-tab-header-inner-icon svg {
+  transition: color 0.15s ease !important;
+}
