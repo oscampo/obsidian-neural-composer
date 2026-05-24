@@ -2846,6 +2846,7 @@ button.nrlcmp-chat-input-model-select {
 /* CSS-only approach: dots rendered via ::before, no DOM injection.   */
 /* data-nc-status attribute is set/removed by FileExplorerDecorator.  */
 
+/* Shared dot style — files */
 .nav-file-title[data-nc-status]::before {
   /* Use a non-breaking space so the pseudo-element is never empty/collapsed. */
   content: '\00a0' !important;
@@ -2861,17 +2862,52 @@ button.nrlcmp-chat-input-model-select {
   font-size: 0 !important;
 }
 
+/* Shared dot style — watched folder (slightly larger for visibility) */
+.nav-folder-title[data-nc-status]::before {
+  content: '\00a0' !important;
+  display: inline-block !important;
+  width: 9px !important;
+  height: 9px !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  margin-right: 5px !important;
+  vertical-align: middle !important;
+  align-self: center !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+}
+
+/* ── File status colours ──────────────────────────────────────────── */
 .nav-file-title[data-nc-status="processed"]::before {
   background-color: #22c55e !important;
 }
-
 .nav-file-title[data-nc-status="processing"]::before {
   background-color: #f59e0b !important;
   animation: nc-doc-pulse 1.5s ease-in-out infinite !important;
 }
-
 .nav-file-title[data-nc-status="failed"]::before {
   background-color: #ef4444 !important;
+}
+.nav-file-title[data-nc-status="removed"]::before {
+  background-color: #3b82f6 !important; /* blue-500 */
+}
+
+/* ── Folder aggregate colours ─────────────────────────────────────── */
+/* 🟢 All processed                                                    */
+.nav-folder-title[data-nc-status="processed"]::before {
+  background-color: #22c55e !important;
+}
+/* 🟡 Any processing or failed (yellow, pulsing when processing)       */
+.nav-folder-title[data-nc-status="processing"]::before {
+  background-color: #f59e0b !important;
+  animation: nc-doc-pulse 1.5s ease-in-out infinite !important;
+}
+.nav-folder-title[data-nc-status="failed"]::before {
+  background-color: #f59e0b !important; /* yellow — matches processing for folder */
+}
+/* 🔵 Some docs intentionally removed, none processing/failed          */
+.nav-folder-title[data-nc-status="removed"]::before {
+  background-color: #3b82f6 !important; /* blue-500 */
 }
 
 @keyframes nc-doc-pulse {

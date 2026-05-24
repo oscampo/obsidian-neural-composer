@@ -1,7 +1,7 @@
 import { requestUrl } from 'obsidian'
 import NeuralComposerPlugin from '../../main'
 
-export type DocStatus = 'processed' | 'processing' | 'failed' | 'unknown'
+export type DocStatus = 'processed' | 'processing' | 'failed' | 'removed' | 'unknown'
 
 export interface DocRecord {
   status: DocStatus
@@ -92,6 +92,7 @@ export class DocIndexService {
     if (!rec || rec.status === 'unknown') return true
     if (rec.status === 'processing') return false
     if (rec.status === 'failed') return false
+    if (rec.status === 'removed') return false  // intentionally removed; user must reprocess manually
     return rec.mtime !== undefined && currentMtime > rec.mtime
   }
 
@@ -115,10 +116,58 @@ export class DocIndexService {
     this.scheduleSave()
   }
 
+  /**
+   * Mark a doc as intentionally removed from the graph.
+   * The file still exists in the vault but is no longer in LightRAG.
+   * Preserved across syncFromServer() calls — not reset to 'unknown'.
+   */
+  setRemoved(vaultPath: string): void {
+    const rec = this.index[vaultPath] ?? {}
+    this.index[vaultPath] = { ...rec, status: 'removed', docId: undefined }
+    this.notify()
+    this.scheduleSave()
+  }
+
   removeEntry(vaultPath: string): void {
     delete this.index[vaultPath]
     this.notify()
     this.scheduleSave()
+  }
+
+  /**
+   * Compute the aggregate status for the watched folder based on a list of
+   * vault-relative file paths inside it.
+   *
+   * Priority (highest → lowest):
+   *   processing > failed > removed > processed > unknown (= no indicator)
+   *
+   * Returns 'unknown' when all files are unknown (nothing to show).
+   * Returns 'processed' only when EVERY file is 'processed' (folder fully green).
+   */
+  computeFolderStatus(vaultFilePaths: string[]): DocStatus {
+    let hasProcessing = false
+    let hasFailed = false
+    let hasRemoved = false
+    let hasUnknown = false
+    let processedCount = 0
+
+    for (const path of vaultFilePaths) {
+      const s = this.getStatus(path)
+      if (s === 'processing') hasProcessing = true
+      else if (s === 'failed') hasFailed = true
+      else if (s === 'removed') hasRemoved = true
+      else if (s === 'unknown') hasUnknown = true
+      else if (s === 'processed') processedCount++
+    }
+
+    if (hasProcessing) return 'processing'
+    if (hasFailed) return 'failed'
+    if (hasRemoved) return 'removed'
+    // Green only when every file is confirmed processed
+    if (processedCount === vaultFilePaths.length && vaultFilePaths.length > 0) return 'processed'
+    // Mix of processed + unknown → no indicator yet
+    if (hasUnknown) return 'unknown'
+    return 'unknown'
   }
 
   renameEntry(oldPath: string, newPath: string): void {
@@ -318,13 +367,19 @@ export class DocIndexService {
           if (newStatus === 'processing') anyProcessing = true
         } else {
           // Not found on server after a successful, non-empty response.
-          // The server is authoritative: the doc does not exist in LightRAG.
-          // Reset to 'unknown' regardless of the previous local status —
-          // this clears docs that were stuck at 'processing' from a previous
-          // session where the actual submission failed.
           const prev = this.index[file.path]?.status ?? 'unknown'
-          console.log(`[NeuralComposer] DocIndex: ${file.name} NOT on server (was: ${prev}) → unknown`)
-          this.index[file.path] = { status: 'unknown' }
+          if (prev === 'removed') {
+            // Intentionally removed by the user — not a stale processing entry.
+            // The server correctly has no record of it; preserve the status so
+            // the blue dot stays visible and needsIngestion() stays false.
+            console.log(`[NeuralComposer] DocIndex: ${file.name} NOT on server (was: removed) → keeping removed`)
+          } else {
+            // The server is authoritative: the doc does not exist in LightRAG.
+            // Reset to 'unknown' — clears docs stuck at 'processing' from a
+            // previous session where submission failed silently.
+            console.log(`[NeuralComposer] DocIndex: ${file.name} NOT on server (was: ${prev}) → unknown`)
+            this.index[file.path] = { status: 'unknown' }
+          }
         }
       }
 

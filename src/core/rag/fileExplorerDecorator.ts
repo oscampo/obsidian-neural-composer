@@ -1,7 +1,8 @@
 import type { DocStatus } from './docIndexService'
 
 /**
- * Applies data-nc-status attributes to file items in the file explorer.
+ * Applies data-nc-status attributes to file items in the file explorer,
+ * and to the watched-folder title element for the aggregate status indicator.
  * CSS ::before pseudo-elements render the colored dot — no DOM injection.
  *
  * A MutationObserver watches for childList changes (Obsidian re-rendering
@@ -35,10 +36,19 @@ export class FileExplorerDecorator {
   }
 
   /**
-   * Set data-nc-status on every .nav-file-title[data-path] inside syncFolder.
-   * Files outside syncFolder have the attribute removed.
+   * Set data-nc-status on every .nav-file-title[data-path] inside syncFolder,
+   * and on the .nav-folder-title[data-path] of the sync folder itself.
+   *
+   * @param syncFolder    - vault-relative path of the watched folder
+   * @param getStatus     - returns the status for a given file path
+   * @param folderStatus  - pre-computed aggregate status for the folder element
    */
-  decorate(syncFolder: string, getStatus: (path: string) => DocStatus): void {
+  decorate(
+    syncFolder: string,
+    getStatus: (path: string) => DocStatus,
+    folderStatus: DocStatus = 'unknown',
+  ): void {
+    // ── Per-file dots ───────────────────────────────────────────────────────
     document
       .querySelectorAll<HTMLElement>('.nav-file-title[data-path]')
       .forEach((el) => {
@@ -58,6 +68,22 @@ export class FileExplorerDecorator {
           el.removeAttribute('data-nc-status')
         }
       })
+
+    // ── Watched-folder aggregate dot ────────────────────────────────────────
+    if (syncFolder) {
+      // Escape quotes in path for use inside an attribute selector string.
+      const escaped = syncFolder.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      const folderEl = document.querySelector<HTMLElement>(
+        `.nav-folder-title[data-path="${escaped}"]`,
+      )
+      if (folderEl) {
+        if (folderStatus === 'unknown') {
+          folderEl.removeAttribute('data-nc-status')
+        } else {
+          folderEl.setAttribute('data-nc-status', folderStatus)
+        }
+      }
+    }
   }
 
   /** Remove all status attributes and stop the observer (called on unload). */

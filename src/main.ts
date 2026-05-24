@@ -575,9 +575,9 @@ export default class NeuralComposerPlugin extends Plugin {
             const status = this.docIndexService.getStatus(file.path)
 
             // Allow reprocessing for any non-processed state, including
-            // 'processing' — a doc can be stuck at that status if a previous
-            // submission failed silently or Obsidian was closed mid-ingest.
-            if (status === 'failed' || status === 'unknown' || status === 'processing') {
+            // 'processing' (stuck from a crashed session) and 'removed'
+            // (user wants to re-add the doc to the graph).
+            if (status === 'failed' || status === 'unknown' || status === 'processing' || status === 'removed') {
               menu.addItem((item) =>
                 item
                   .setTitle('Reprocess document')
@@ -612,7 +612,10 @@ export default class NeuralComposerPlugin extends Plugin {
                         file.path,
                         file.name,
                       )
-                      this.docIndexService!.removeEntry(file.path)
+                      // Mark as 'removed' (blue dot) instead of deleting the entry.
+                      // This preserves the intentional-removal state across restarts
+                      // and prevents auto-reingestion on file-change events.
+                      this.docIndexService!.setRemoved(file.path)
                     })()
                   }),
               )
@@ -876,12 +879,28 @@ export default class NeuralComposerPlugin extends Plugin {
     this.stopLightRagServer()
   }
 
-  /** Apply data-nc-status attributes to files in the watched folder. No DOM injection. */
+  /** Apply data-nc-status attributes to files and the watched folder. No DOM injection. */
   private decorateFileExplorer(): void {
     if (!this.fileExplorerDecorator || !this.docIndexService) return
     const syncFolder = this.settings.lightRagSyncFolder.trim()
-    this.fileExplorerDecorator.decorate(syncFolder, (path) =>
-      this.docIndexService!.getStatus(path),
+
+    // Compute aggregate folder status from ALL files in the sync folder,
+    // not just the ones visible in the DOM (avoids false-green on scroll).
+    const folderFilePaths = syncFolder
+      ? this.app.vault
+          .getFiles()
+          .filter(
+            (f) =>
+              f.path === syncFolder || f.path.startsWith(syncFolder + '/'),
+          )
+          .map((f) => f.path)
+      : []
+    const folderStatus = this.docIndexService.computeFolderStatus(folderFilePaths)
+
+    this.fileExplorerDecorator.decorate(
+      syncFolder,
+      (path) => this.docIndexService!.getStatus(path),
+      folderStatus,
     )
   }
 
