@@ -2880,60 +2880,48 @@ button.nrlcmp-chat-input-model-select {
 }
 
 /* ── Sidebar rail: tab icon theming ──────────────────────────────────────
-   Applies to left & right sidebar panel tabs (NOT the main editor tabs).
+   Targets ALL workspace tab headers (sidebar panel tabs).
+   Scoped away from the main editor tabs by targeting the icon element
+   directly — the key difference between sidebar and editor tabs.
 
-   • Non-selected  → Obsidian classic accent purple/violet icon stroke,
-                     consistent in both light and dark themes.
-   • Selected      → filled purple rounded background + white icon,
-                     matching the brain-circuit ribbon button visual style.
+   • Non-selected  → Obsidian classic purple/violet icon stroke
+   • Selected      → filled purple rounded square + white icon
+                     (same style as the brain-circuit ribbon button)
    ──────────────────────────────────────────────────────────────────────── */
 
-/* ── Non-selected icons: purple/violet stroke ───────────────────────── */
-.workspace-split.mod-left-split
-  .workspace-tab-header:not(.is-active)
-  .workspace-tab-header-inner-icon,
-.workspace-split.mod-left-split
-  .workspace-tab-header:not(.is-active)
-  .workspace-tab-header-inner-icon svg,
-.workspace-split.mod-right-split
-  .workspace-tab-header:not(.is-active)
-  .workspace-tab-header-inner-icon,
-.workspace-split.mod-right-split
-  .workspace-tab-header:not(.is-active)
-  .workspace-tab-header-inner-icon svg {
+/* ── Non-selected sidebar tab icons: purple stroke ────────────────────── */
+.workspace-tab-header:not(.is-active) .workspace-tab-header-inner-icon {
   color: var(--color-accent) !important;
 }
+.workspace-tab-header:not(.is-active) .workspace-tab-header-inner-icon svg {
+  color: var(--color-accent) !important;
+  stroke: var(--color-accent) !important;
+}
 
-/* ── Selected icon: filled purple rounded background ─────────────────── */
-.workspace-split.mod-left-split
-  .workspace-tab-header.is-active
-  .workspace-tab-header-inner-icon,
-.workspace-split.mod-right-split
-  .workspace-tab-header.is-active
-  .workspace-tab-header-inner-icon {
+/* ── Selected sidebar tab icon: filled purple rounded square ───────────── */
+.workspace-tab-header.is-active .workspace-tab-header-inner-icon {
   background-color: var(--color-accent) !important;
   border-radius: 6px !important;
-  padding: 3px !important;
-  /* Ensure box-model consistency across Obsidian versions */
-  box-sizing: content-box !important;
+  padding: 4px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
-
-/* ── Selected icon: white stroke on purple background ────────────────── */
-.workspace-split.mod-left-split
-  .workspace-tab-header.is-active
-  .workspace-tab-header-inner-icon svg,
-.workspace-split.mod-right-split
-  .workspace-tab-header.is-active
-  .workspace-tab-header-inner-icon svg {
+.workspace-tab-header.is-active .workspace-tab-header-inner-icon svg {
   color: #ffffff !important;
+  stroke: #ffffff !important;
 }
 
-/* ── Smooth color transition on selection change ─────────────────────── */
-.workspace-split.mod-left-split .workspace-tab-header-inner-icon,
-.workspace-split.mod-right-split .workspace-tab-header-inner-icon {
-  transition: background-color 0.15s ease, color 0.15s ease !important;
+/* ── Ribbon action buttons (brain-circuit + others): purple when idle ─── */
+/* The brain-circuit icon already has its own filled look; these rules     */
+/* make other ribbon buttons (non-active) use purple too.                  */
+.side-dock-ribbon-action:not(.is-active) svg {
+  color: var(--color-accent) !important;
+  stroke: var(--color-accent) !important;
 }
-.workspace-split.mod-left-split .workspace-tab-header-inner-icon svg,
-.workspace-split.mod-right-split .workspace-tab-header-inner-icon svg {
-  transition: color 0.15s ease !important;
+
+/* Smooth transition on state change */
+.workspace-tab-header-inner-icon,
+.workspace-tab-header-inner-icon svg {
+  transition: background-color 0.15s ease, color 0.15s ease, stroke 0.15s ease !important;
 }
