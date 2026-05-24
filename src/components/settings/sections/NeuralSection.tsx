@@ -57,8 +57,18 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
   )
   const [useRemote, setUseRemote] = useState(plugin.settings.lightRagUseRemote)
 
+  /** Detected LightRAG version — updated whenever the health check fires. */
+  const [serverVersion, setServerVersion] = useState<string | null>(
+    () => plugin.lightRagServerVersion,
+  )
+
   useEffect(() => {
     return plugin.addSettingsChangeListener(setLocalSettings)
+  }, [plugin])
+
+  // Subscribe to server version changes (populated by checkAndUpdateStatus)
+  useEffect(() => {
+    return plugin.addVersionChangeListener(setServerVersion)
   }, [plugin])
 
   useEffect(() => {
@@ -66,7 +76,20 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
     settingsRef.current.empty()
     const container = settingsRef.current
 
-    container.createEl('h3', { text: `Neural backend (${BACKEND_NAME})` })
+    // Header row: title + version badge side by side
+    const headerRow = container.createDiv({ cls: 'nc-server-header-row' })
+    headerRow.createEl('h3', { text: `Neural backend (${BACKEND_NAME})` })
+    // Version badge — updated reactively by the separate useEffect below.
+    // data-nc-version acts as a stable selector so the reactive effect can
+    // find and update this element without rebuilding the whole DOM.
+    const versionBadge = headerRow.createSpan({
+      cls: 'nc-version-badge',
+      attr: { 'data-nc-version': '' },
+    })
+    if (plugin.lightRagServerVersion) {
+      versionBadge.textContent = `v${plugin.lightRagServerVersion}`
+      versionBadge.addClass('nc-version-badge--online')
+    }
 
     // --- SERVER CONNECTION MODE ---
     new Setting(container)
@@ -541,6 +564,20 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
         })
       })
   }, [settings, currentRerankBinding, useCustomOntology, useRemote])
+
+  // Reactively update the version badge whenever the server version changes
+  // without rebuilding the entire DOM (no focus loss, no flicker).
+  useEffect(() => {
+    const badge = settingsRef.current?.querySelector<HTMLElement>('[data-nc-version]')
+    if (!badge) return
+    if (serverVersion) {
+      badge.textContent = `v${serverVersion}`
+      badge.classList.add('nc-version-badge--online')
+    } else {
+      badge.textContent = ''
+      badge.classList.remove('nc-version-badge--online')
+    }
+  }, [serverVersion])
 
   return <div ref={settingsRef} />
 }

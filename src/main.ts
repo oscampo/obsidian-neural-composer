@@ -146,6 +146,22 @@ export default class NeuralComposerPlugin extends Plugin {
    *  events that fire during Obsidian startup from re-submitting already-ingested files. */
   private docIndexReady = false
 
+  /** Detected LightRAG core version (from GET /health → core_version). Null when offline. */
+  public lightRagServerVersion: string | null = null
+  private versionChangeListeners: Set<(v: string | null) => void> = new Set()
+
+  /** Subscribe to LightRAG server version changes. Returns an unsubscribe fn. */
+  addVersionChangeListener(fn: (v: string | null) => void): () => void {
+    this.versionChangeListeners.add(fn)
+    return () => this.versionChangeListeners.delete(fn)
+  }
+
+  private setServerVersion(v: string | null): void {
+    if (v === this.lightRagServerVersion) return
+    this.lightRagServerVersion = v
+    this.versionChangeListeners.forEach((fn) => fn(v))
+  }
+
   // Node.js modules — loaded lazily on desktop only, always null on mobile
   private _nodeFs: typeof import('fs') | null = null
   private _nodePath: typeof import('path') | null = null
@@ -1705,14 +1721,18 @@ export default class NeuralComposerPlugin extends Plugin {
       })
 
       if (response.status === 200) {
-        // Fix: Explicit type annotation for response data
-        const data: { pipeline_busy?: boolean } = response.json
+        const data: { pipeline_busy?: boolean; core_version?: string; api_version?: string } =
+          response.json
         const isBusy = data?.pipeline_busy ?? false
+        // Store the server version (core_version is canonical; api_version as fallback)
+        this.setServerVersion(data?.core_version ?? data?.api_version ?? null)
         this.updateStatusUI(isBusy ? 'busy' : 'online')
       } else {
+        this.setServerVersion(null)
         this.updateStatusUI('offline')
       }
     } catch {
+      this.setServerVersion(null)
       this.updateStatusUI('offline')
     }
   }
@@ -1729,15 +1749,16 @@ export default class NeuralComposerPlugin extends Plugin {
     if (!this.statusDotEl) return
     this.statusDotEl.removeClass('is-online', 'is-offline', 'is-busy')
 
+    const versionTag = this.lightRagServerVersion ? ` v${this.lightRagServerVersion}` : ''
     if (status === 'online') {
       this.statusDotEl.addClass('is-online')
-      setTooltip(this.statusBarEl, 'LightRAG: Online')
+      setTooltip(this.statusBarEl, `LightRAG${versionTag} · Online`)
     } else if (status === 'busy') {
       this.statusDotEl.addClass('is-busy')
-      setTooltip(this.statusBarEl, 'LightRAG: Processing...')
+      setTooltip(this.statusBarEl, `LightRAG${versionTag} · Processing…`)
     } else {
       this.statusDotEl.addClass('is-offline')
-      setTooltip(this.statusBarEl, 'LightRAG: Offline (Click to restart)')
+      setTooltip(this.statusBarEl, 'LightRAG · Offline (click to restart)')
     }
   }
 

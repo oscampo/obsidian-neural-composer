@@ -2842,6 +2842,45 @@ button.nrlcmp-chat-input-model-select {
   max-width: 780px;
 }
 
+/* ── LightRAG server version badge ──────────────────────────────────────
+   Displayed next to the "Neural backend" section header in Graph & Vault.
+   Shows the core_version reported by GET /health when the server is online.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.nc-server-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nc-server-header-row h3 {
+  margin: 0;
+}
+
+.nc-version-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-monospace);
+  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+  transition: background 0.2s ease, color 0.2s ease;
+  /* Empty badge takes no space */
+  &:empty {
+    display: none;
+  }
+}
+
+.nc-version-badge--online {
+  background: color-mix(in srgb, #22c55e 15%, transparent);
+  color: #22c55e;
+}
+
 /* ── Document status dots in file explorer ───────────────────────── */
 /* CSS-only approach: dots rendered via ::before, no DOM injection.   */
 /* data-nc-status attribute is set/removed by FileExplorerDecorator.  */
