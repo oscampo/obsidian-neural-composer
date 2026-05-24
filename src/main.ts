@@ -574,7 +574,10 @@ export default class NeuralComposerPlugin extends Plugin {
 
             const status = this.docIndexService.getStatus(file.path)
 
-            if (status === 'failed' || status === 'unknown') {
+            // Allow reprocessing for any non-processed state, including
+            // 'processing' — a doc can be stuck at that status if a previous
+            // submission failed silently or Obsidian was closed mid-ingest.
+            if (status === 'failed' || status === 'unknown' || status === 'processing') {
               menu.addItem((item) =>
                 item
                   .setTitle('Reprocess document')
@@ -614,12 +617,6 @@ export default class NeuralComposerPlugin extends Plugin {
                   }),
               )
             }
-
-            if (status === 'processing') {
-              menu.addItem((item) =>
-                item.setTitle('Processing… (in queue)').setDisabled(true),
-              )
-            }
           }
 
           if (file instanceof TFolder && file.path === syncFolder) {
@@ -643,7 +640,9 @@ export default class NeuralComposerPlugin extends Plugin {
                     let anySubmitted = false
                     for (const f of files) {
                       const st = this.docIndexService!.getStatus(f.path)
-                      if (st === 'failed' || st === 'unknown') {
+                      // Include 'processing' — a doc can be stuck at that
+                      // status from a previous failed/interrupted submission.
+                      if (st === 'failed' || st === 'unknown' || st === 'processing') {
                         this.docIndexService!.setProcessing(f.path, f.stat.mtime)
                         const ok = await ragEngine.ingestFile(f)
                         if (!ok) this.docIndexService!.setFailed(f.path)

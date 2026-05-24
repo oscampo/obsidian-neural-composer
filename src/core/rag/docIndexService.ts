@@ -257,12 +257,18 @@ export class DocIndexService {
 
   /**
    * Reconcile the local index with the LightRAG server.
-   *  • Matched doc  → update status from server.
-   *  • Not found    → reset to 'unknown' (unless the local status is 'processing',
-   *                   in which case keep it — it might still be queued).
    *
-   * After reconciling, if any docs are still in 'processing' state and the
-   * pipeline watch is not already running, it is started automatically.
+   *  • Matched doc   → update status from server (authoritative).
+   *  • Not found     → ALWAYS reset to 'unknown'.
+   *                    If the server replied with a non-empty list and the doc
+   *                    is absent, it was never actually ingested (submission
+   *                    failed silently, Obsidian crashed, etc.).  A 'processing'
+   *                    state kept from a previous session that is not confirmed
+   *                    by the server is stale and must be cleared so the user
+   *                    can reprocess the document.
+   *
+   * After reconciling, any docs that the server reports as PENDING/PROCESSING
+   * trigger an automatic pipeline watch.
    */
   async syncFromServer(): Promise<void> {
     const syncFolder = this.plugin.settings.lightRagSyncFolder.trim()
@@ -271,18 +277,17 @@ export class DocIndexService {
     try {
       const docs = await this.fetchAllDocs()
 
-      // Log what the server returned for debugging
-      if (docs.length > 0) {
-        const sample = docs.slice(0, 3).map((d) => `${d.file_path} → ${d.status}`)
-        console.log('[NeuralComposer] DocIndex sample:', sample)
-      } else {
+      if (docs.length === 0) {
+        // Server offline or graph genuinely empty — keep cached statuses.
+        // Do NOT reset 'processing' here: we can't distinguish "server down"
+        // from "empty graph".  The pipeline watch (if running) will sync once
+        // the server becomes reachable.
         console.warn('[NeuralComposer] DocIndex: server returned 0 docs — keeping cache')
-        // Still start pipeline watch if cache has processing docs
-        if (this.hasProcessingDocs() && !this.pipelineTimer) {
-          this.startPipelineWatch(2000)
-        }
         return
       }
+
+      const sample = docs.slice(0, 3).map((d) => `${d.file_path} → ${d.status}`)
+      console.log('[NeuralComposer] DocIndex sample:', sample)
 
       const files = this.plugin.app.vault
         .getFiles()
@@ -312,24 +317,23 @@ export class DocIndexService {
           }
           if (newStatus === 'processing') anyProcessing = true
         } else {
-          // Not found on server
-          const current = this.index[file.path]?.status
-          console.log(`[NeuralComposer] DocIndex: ${file.name} NOT found on server (local: ${current})`)
-          if (current === 'processing') {
-            // Keep 'processing' — doc might still be queued (not yet visible via API)
-            anyProcessing = true
-          } else {
-            this.index[file.path] = { status: 'unknown' }
-          }
+          // Not found on server after a successful, non-empty response.
+          // The server is authoritative: the doc does not exist in LightRAG.
+          // Reset to 'unknown' regardless of the previous local status —
+          // this clears docs that were stuck at 'processing' from a previous
+          // session where the actual submission failed.
+          const prev = this.index[file.path]?.status ?? 'unknown'
+          console.log(`[NeuralComposer] DocIndex: ${file.name} NOT on server (was: ${prev}) → unknown`)
+          this.index[file.path] = { status: 'unknown' }
         }
       }
 
       this.scheduleSave()
       this.notify()
 
-      // Auto-start pipeline watch if any docs are still in the pipeline
+      // Auto-start pipeline watch if the server reports docs still processing
       if (anyProcessing && !this.pipelineTimer) {
-        console.log('[NeuralComposer] DocIndex: docs still processing — starting pipeline watch')
+        console.log('[NeuralComposer] DocIndex: docs still processing on server — starting pipeline watch')
         this.startPipelineWatch(2000)
       }
     } catch (e) {
