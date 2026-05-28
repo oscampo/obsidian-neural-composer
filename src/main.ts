@@ -21,6 +21,7 @@ import {
 import { ApplyView } from './ApplyView'
 import { ChatView } from './ChatView'
 import { ChatProps } from './components/chat-view/Chat'
+import { ConfirmModal } from './components/modals/ConfirmModal'
 import { APPLY_VIEW_TYPE, CHAT_VIEW_TYPE } from './constants'
 import { McpManager } from './core/mcp/mcpManager'
 import { RAGEngine } from './core/rag/ragEngine'
@@ -344,6 +345,14 @@ export default class NeuralComposerPlugin extends Plugin {
               .setIcon('layers')
               .onClick(() => {
                 void this.batchIngestFolder(file)
+              })
+          })
+          menu.addItem((item) => {
+            item
+              .setTitle('Remove folder from graph')
+              .setIcon('trash-2')
+              .onClick(() => {
+                void this.batchRemoveFolderFromGraph(file)
               })
           })
         }
@@ -882,6 +891,85 @@ export default class NeuralComposerPlugin extends Plugin {
     } catch (error) {
       console.error('Batch error:', error)
       notice.setMessage('Error starting upload.')
+      setTimeout(() => notice.hide(), 5000)
+    }
+  }
+
+  /**
+   * Delete every ingested document under a folder (and its subfolders) from
+   * the LightRAG graph. Iterates the same supported-extension set as the
+   * ingest counterpart and calls deleteDocumentByFilePath per file — LightRAG
+   * returns success only for docs it actually knew about, so files that were
+   * never ingested are silently skipped.
+   *
+   * Files inside the configured Watched folder also get marked as `removed`
+   * in the local docIndexService so the file-explorer dots flip blue and
+   * the next file-change event doesn't auto-reingest them.
+   */
+  async batchRemoveFolderFromGraph(folder: TFolder) {
+    const files = this.getAllSupportedFiles(folder)
+    if (files.length === 0) {
+      new Notice('Empty folder or no supported files.')
+      return
+    }
+
+    new ConfirmModal(this.app, {
+      title: 'Remove folder from graph',
+      message: `Remove ${files.length} file${
+        files.length === 1 ? '' : 's'
+      } in "${folder.path}" (and its subfolders) from the ${BACKEND_NAME} graph?\n\nThe files themselves stay in the vault.`,
+      ctaText: 'Remove',
+      onConfirm: () => {
+        void this.executeBatchRemoveFolderFromGraph(folder, files)
+      },
+    }).open()
+  }
+
+  private async executeBatchRemoveFolderFromGraph(
+    folder: TFolder,
+    files: TFile[],
+  ) {
+    const notice = new Notice(`Removing ${files.length} files from graph...`, 0)
+    const syncFolder = this.settings.lightRagSyncFolder.trim()
+    const isInWatchedFolder = (path: string) =>
+      !!syncFolder && (path === syncFolder || path.startsWith(syncFolder + '/'))
+
+    try {
+      const ragEngine = await this.getRAGEngine()
+      let removed = 0
+      let missing = 0
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        notice.setMessage(`Removing (${i + 1}/${files.length}):\n${file.name}`)
+        try {
+          const ok = await ragEngine.deleteDocumentByFilePath(
+            file.path,
+            file.name,
+          )
+          if (ok) {
+            removed++
+            if (isInWatchedFolder(file.path)) {
+              this.docIndexService?.setRemoved(file.path)
+            }
+          } else {
+            missing++
+          }
+        } catch (err) {
+          console.error(`Error removing ${file.name}:`, err)
+          missing++
+        }
+      }
+
+      notice.setMessage(
+        `Removed ${removed} from "${folder.path}"` +
+          (missing > 0 ? ` (${missing} not in graph)` : ''),
+      )
+      setTimeout(() => notice.hide(), 4000)
+      this.decorateFileExplorer()
+    } catch (error) {
+      console.error('Batch remove error:', error)
+      notice.setMessage('Error removing files from graph.')
       setTimeout(() => notice.hide(), 5000)
     }
   }
