@@ -183,6 +183,55 @@ export class RAGEngine {
 
   // --- 2b. INCREMENTAL SYNC HELPERS ---
 
+  /**
+   * Paginate through `/documents/paginated` and return every `file_path`
+   * currently known to the LightRAG server. Used by the folder context menu
+   * to decide whether to offer "Ingest folder" vs "Remove folder from graph".
+   *
+   * Returns an empty array on transport / auth failure — callers must treat
+   * "I don't know" the same as "no data" and fall back to showing both menu
+   * items.
+   */
+  async listAllDocumentPaths(): Promise<string[]> {
+    const pageSize = 200
+    const paths: string[] = []
+    let page = 1
+    try {
+      // Hard cap to avoid runaway loops if the server reports `has_next: true`
+      // forever for some reason.
+      while (page <= 200) {
+        const response = await requestUrl({
+          url: `${this.settings.lightRagServerUrl}/documents/paginated`,
+          method: 'POST',
+          headers: this.getLightRagHeaders(),
+          body: JSON.stringify({
+            page,
+            page_size: pageSize,
+            sort_field: 'file_path',
+            sort_direction: 'asc',
+          }),
+          throw: false,
+        })
+        if (response.status >= 400) break
+        const data = response.json as {
+          documents?: { id: string; file_path?: string | null }[]
+          pagination?: { has_next?: boolean }
+        }
+        for (const doc of data.documents ?? []) {
+          if (typeof doc.file_path === 'string' && doc.file_path.length > 0) {
+            paths.push(doc.file_path)
+          }
+        }
+        if (!data.pagination?.has_next) break
+        page++
+      }
+    } catch (e) {
+      console.error('listAllDocumentPaths failed:', e)
+      return []
+    }
+    return paths
+  }
+
   // Finds a LightRAG doc_id matching the given file.
   // Tries the full vault-relative path first (v1.2+ ingest), then falls back to
   // bare filename (pre-v1.2 ingest used file.name instead of file.path).

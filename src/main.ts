@@ -152,6 +152,21 @@ export default class NeuralComposerPlugin extends Plugin {
   /** True once at least one health check has completed (distinguishes "not yet checked" from "offline"). */
   public lightRagServerChecked = false
 
+  /**
+   * Set of vault-relative folder paths that contain at least one document
+   * currently in the LightRAG graph. Populated from /documents/paginated on
+   * plugin load (after the server is reachable) and refreshed after each
+   * batch-ingest / batch-remove. The folder context menu reads this to
+   * decide whether to show "Ingest folder into graph" or "Remove folder
+   * from graph" — never both.
+   *
+   * Empty when the server hasn't been queried yet OR the request failed;
+   * callers must treat "I don't know" the same way and show both menu
+   * items so the user can still act.
+   */
+  private ingestedFolderPaths: Set<string> = new Set()
+  private ingestedFolderPathsLoaded = false
+
   private versionChangeListeners: Set<
     (info: { version: string | null; checked: boolean }) => void
   > = new Set()
@@ -336,25 +351,38 @@ export default class NeuralComposerPlugin extends Plugin {
     })
 
     // --- CONTEXT MENU (FOLDERS) ---
+    // The menu shows exactly one of "Ingest" / "Remove from graph" based on
+    // whether the folder has any descendants currently in the LightRAG
+    // graph. When we haven't loaded the ingested-folders cache yet (e.g.
+    // server unreachable on startup), fall back to showing both so the user
+    // can still take action.
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file) => {
         if (file instanceof TFolder) {
-          menu.addItem((item) => {
-            item
-              .setTitle('Ingest folder into graph')
-              .setIcon('layers')
-              .onClick(() => {
-                void this.batchIngestFolder(file)
-              })
-          })
-          menu.addItem((item) => {
-            item
-              .setTitle('Remove folder from graph')
-              .setIcon('trash-2')
-              .onClick(() => {
-                void this.batchRemoveFolderFromGraph(file)
-              })
-          })
+          const inGraph = this.isFolderInGraph(file.path)
+          const showIngest = !this.ingestedFolderPathsLoaded || !inGraph
+          const showRemove = !this.ingestedFolderPathsLoaded || inGraph
+
+          if (showIngest) {
+            menu.addItem((item) => {
+              item
+                .setTitle('Ingest folder into graph')
+                .setIcon('layers')
+                .onClick(() => {
+                  void this.batchIngestFolder(file)
+                })
+            })
+          }
+          if (showRemove) {
+            menu.addItem((item) => {
+              item
+                .setTitle('Remove folder from graph')
+                .setIcon('trash-2')
+                .onClick(() => {
+                  void this.batchRemoveFolderFromGraph(file)
+                })
+            })
+          }
         }
       }),
     )
@@ -842,6 +870,43 @@ export default class NeuralComposerPlugin extends Plugin {
     return files
   }
 
+  /**
+   * Re-fetch the set of vault folders that contain ingested documents from
+   * /documents/paginated. Cheap (one HTTP roundtrip per ~200 docs) and only
+   * called on plugin load + after batch ingest/remove finishes.
+   */
+  async refreshIngestedFolderPaths(): Promise<void> {
+    try {
+      const ragEngine = await this.getRAGEngine()
+      const paths = await ragEngine.listAllDocumentPaths()
+      const folders = new Set<string>()
+      for (const filePath of paths) {
+        // Walk up the path: 'a/b/c.md' → add 'a/b' and 'a'.
+        const normalized = filePath.replace(/\\/g, '/')
+        const parts = normalized.split('/')
+        for (let i = parts.length - 1; i > 0; i--) {
+          folders.add(parts.slice(0, i).join('/'))
+        }
+      }
+      this.ingestedFolderPaths = folders
+      this.ingestedFolderPathsLoaded = true
+    } catch (e) {
+      console.error('refreshIngestedFolderPaths failed:', e)
+      // Keep ingestedFolderPathsLoaded=false so the menu falls back to
+      // showing both items.
+    }
+  }
+
+  /**
+   * True when the folder (or any of its descendants) has at least one
+   * document currently in the LightRAG graph. Synchronous — reads only
+   * from the in-memory cache populated by refreshIngestedFolderPaths.
+   */
+  private isFolderInGraph(folderPath: string): boolean {
+    if (!this.ingestedFolderPathsLoaded) return false
+    return this.ingestedFolderPaths.has(folderPath)
+  }
+
   async batchIngestFolder(folder: TFolder) {
     const files = this.getAllSupportedFiles(folder)
     if (files.length === 0) {
@@ -888,6 +953,9 @@ export default class NeuralComposerPlugin extends Plugin {
         `Uploaded files (${successCount}).\nStart processing...`,
       )
       await this.monitorPipeline(notice)
+      // Pick up the new files so the next folder right-click shows the
+      // correct (Ingest vs Remove) item.
+      void this.refreshIngestedFolderPaths()
     } catch (error) {
       console.error('Batch error:', error)
       notice.setMessage('Error starting upload.')
@@ -959,6 +1027,12 @@ export default class NeuralComposerPlugin extends Plugin {
           console.error(`Error removing ${file.name}:`, err)
           missing++
         }
+      }
+
+      // Pick up the new state so the next folder right-click shows the
+      // correct (Ingest vs Remove) item.
+      if (removed > 0) {
+        void this.refreshIngestedFolderPaths()
       }
 
       notice.setMessage(
@@ -1851,6 +1925,12 @@ export default class NeuralComposerPlugin extends Plugin {
         // Store the server version (core_version is canonical; api_version as fallback)
         this.setServerVersion(data?.core_version ?? data?.api_version ?? null)
         this.updateStatusUI(isBusy ? 'busy' : 'online')
+        // First health-check after the server came online — pre-populate the
+        // ingested-folders cache so the folder context menu can immediately
+        // show the right item.
+        if (!this.ingestedFolderPathsLoaded) {
+          void this.refreshIngestedFolderPaths()
+        }
       } else {
         this.setServerVersion(null)
         this.updateStatusUI('offline')
