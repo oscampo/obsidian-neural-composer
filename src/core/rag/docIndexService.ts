@@ -198,7 +198,7 @@ export class DocIndexService {
   private getHeaders(): Record<string, string> {
     const h: Record<string, string> = { 'Content-Type': 'application/json' }
     if (this.plugin.settings.lightRagApiKey) {
-      h['Authorization'] = `Bearer ${this.plugin.settings.lightRagApiKey}`
+      h['X-API-Key'] = this.plugin.settings.lightRagApiKey
     }
     return h
   }

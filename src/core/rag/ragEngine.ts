@@ -93,7 +93,7 @@ export class RAGEngine {
   ): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': contentType }
     if (this.settings.lightRagApiKey) {
-      headers['Authorization'] = `Bearer ${this.settings.lightRagApiKey}`
+      headers['X-API-Key'] = this.settings.lightRagApiKey
     }
     return headers
   }

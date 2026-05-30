@@ -322,7 +322,7 @@ export class NativeGraphView extends ItemView {
   private getLightRagHeaders(): Record<string, string> {
     const headers: Record<string, string> = {}
     if (this.plugin.settings.lightRagApiKey) {
-      headers['Authorization'] = `Bearer ${this.plugin.settings.lightRagApiKey}`
+      headers['X-API-Key'] = this.plugin.settings.lightRagApiKey
     }
     return headers
   }
@@ -1077,7 +1077,7 @@ export class NativeGraphView extends ItemView {
         headers: {
           'Content-Type': 'application/json',
           ...(this.plugin.settings.lightRagApiKey
-            ? { Authorization: `Bearer ${this.plugin.settings.lightRagApiKey}` }
+            ? { 'X-API-Key': this.plugin.settings.lightRagApiKey }
             : {}),
         },
         body: JSON.stringify({
@@ -1412,7 +1412,7 @@ export class NativeGraphView extends ItemView {
               'Content-Type': 'application/json',
               ...(this.plugin.settings.lightRagApiKey
                 ? {
-                    Authorization: `Bearer ${this.plugin.settings.lightRagApiKey}`,
+                    'X-API-Key': this.plugin.settings.lightRagApiKey,
                   }
                 : {}),
             },
@@ -1457,7 +1457,7 @@ export class NativeGraphView extends ItemView {
                 'Content-Type': 'application/json',
                 ...(this.plugin.settings.lightRagApiKey
                   ? {
-                      Authorization: `Bearer ${this.plugin.settings.lightRagApiKey}`,
+                      'X-API-Key': this.plugin.settings.lightRagApiKey,
                     }
                   : {}),
               },
@@ -1547,7 +1547,7 @@ export class NativeGraphView extends ItemView {
                 'Content-Type': 'application/json',
                 ...(this.plugin.settings.lightRagApiKey
                   ? {
-                      Authorization: `Bearer ${this.plugin.settings.lightRagApiKey}`,
+                      'X-API-Key': this.plugin.settings.lightRagApiKey,
                     }
                   : {}),
               },

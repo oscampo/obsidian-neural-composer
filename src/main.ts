@@ -204,7 +204,7 @@ export default class NeuralComposerPlugin extends Plugin {
   private getLightRagHeaders(): Record<string, string> {
     const headers: Record<string, string> = {}
     if (this.settings.lightRagApiKey) {
-      headers['Authorization'] = `Bearer ${this.settings.lightRagApiKey}`
+      headers['X-API-Key'] = this.settings.lightRagApiKey
     }
     return headers
   }
@@ -1272,7 +1272,7 @@ export default class NeuralComposerPlugin extends Plugin {
         url,
         method: 'POST',
         headers: this.settings.lightRagApiKey
-          ? { Authorization: `Bearer ${this.settings.lightRagApiKey}` }
+          ? { 'X-API-Key': this.settings.lightRagApiKey }
           : {},
         throw: false,
       })
