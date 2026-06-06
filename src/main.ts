@@ -792,7 +792,14 @@ export default class NeuralComposerPlugin extends Plugin {
   }
 
   // --- MONITORING LOGIC ---
-  async monitorPipeline(notice: Notice) {
+  // Polls /documents/pipeline_status and reports live progress in `notice`.
+  // Used for both ingestion and removal — the server's pipeline_status exposes
+  // `job_name` ("Deleting 100 Documents", "indexing", …) and a `latest_message`
+  // that we surface verbatim, so the same monitor works for either operation.
+  async monitorPipeline(
+    notice: Notice,
+    doneMessage = 'Integrated knowledge!\nThe graph is up to date.',
+  ) {
     this.updateStatusUI('busy')
     let isBusy = true
     let errors = 0
@@ -814,9 +821,12 @@ export default class NeuralComposerPlugin extends Plugin {
           const total = status.batchs || 1
           const current = status.cur_batch || 0
           const percent = Math.round((current / total) * 100)
+          // job_name distinguishes deletion ("Deleting N Documents") from
+          // ingestion so the header reflects what's actually happening.
+          const header = status.job_name || 'System processing...'
 
           notice.setMessage(
-            `System processing...\n` +
+            `${header}\n` +
               `Progress: ${percent}% (${current}/${total})\n` +
               `📝 ${status.latest_message || 'Analyzing...'}`,
           )
@@ -834,8 +844,48 @@ export default class NeuralComposerPlugin extends Plugin {
     }
 
     this.updateStatusUI('online')
-    notice.setMessage('Integrated knowledge!\nThe graph is up to date.')
+    notice.setMessage(doneMessage)
     setTimeout(() => notice.hide(), 5000)
+  }
+
+  /**
+   * Poll /documents/pipeline_status until the server is idle. Used to serialize
+   * bulk deletes: LightRAG runs one deletion job at a time and drops delete
+   * requests received while it's busy, so callers must wait for each batch to
+   * drain before sending the next. `onBusy` receives the live status on each
+   * poll where the pipeline is busy (for progress UI).
+   */
+  private async waitForPipelineIdle(
+    onBusy?: (status: Record<string, unknown>) => void,
+    maxMs = 60 * 60 * 1000,
+  ): Promise<void> {
+    const start = Date.now()
+    // Grace period so we don't read `busy:false` before the job registers.
+    await new Promise((r) => setTimeout(r, 1500))
+    let idleReads = 0
+    let errors = 0
+    while (Date.now() - start < maxMs) {
+      try {
+        const response = await requestUrl({
+          url: `${this.settings.lightRagServerUrl}/documents/pipeline_status`,
+          method: 'GET',
+          headers: this.getLightRagHeaders(),
+          throw: false,
+        })
+        const status = response.json as Record<string, unknown>
+        if (status.busy) {
+          idleReads = 0
+          onBusy?.(status)
+        } else if (++idleReads >= 2) {
+          // Two consecutive idle reads → this batch has finished on the server.
+          return
+        }
+        errors = 0
+      } catch {
+        if (++errors > 5) return
+      }
+      await new Promise((r) => setTimeout(r, 2000))
+    }
   }
 
   // --- BATCH LOGIC ---
@@ -961,40 +1011,78 @@ export default class NeuralComposerPlugin extends Plugin {
 
     try {
       const ragEngine = await this.getRAGEngine()
+
+      // Resolve every doc_id in ONE pagination pass (the document list spans
+      // multiple pages on large vaults), then delete in batches. Far fewer
+      // requests than per-file lookup+delete, and correct regardless of size.
+      notice.setMessage('Looking up documents in graph…')
+      const idMap = await ragEngine.getDocIdMap()
+
+      const toDelete: { docId: string; path: string }[] = []
+      for (const file of files) {
+        const docId = idMap.get(file.path) ?? idMap.get(file.name)
+        if (docId) toDelete.push({ docId, path: file.path })
+      }
+      const missing = files.length - toDelete.length
+
+      const tail = missing > 0 ? ` (${missing} not in graph)` : ''
+      if (toDelete.length === 0) {
+        notice.setMessage(
+          missing > 0
+            ? `Nothing removed — ${missing} file(s) were not in the graph.`
+            : 'Nothing to remove.',
+        )
+        setTimeout(() => notice.hide(), 5000)
+        return
+      }
+
+      // Delete in chunks, SEQUENTIALLY. LightRAG runs one deletion job at a
+      // time and drops delete requests received while it's busy, so firing all
+      // chunks at once would only delete the first. We send a chunk, wait for
+      // the server pipeline to drain, then send the next. Deletion is also slow
+      // (the entity graph is reprocessed per document), so we surface live
+      // per-batch progress in the notice.
+      const CHUNK = 100
+      const totalBatches = Math.ceil(toDelete.length / CHUNK)
       let removed = 0
-      let missing = 0
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        notice.setMessage(`Removing (${i + 1}/${files.length}):\n${file.name}`)
-        try {
-          const ok = await ragEngine.deleteDocumentByFilePath(
-            file.path,
-            file.name,
-          )
-          if (ok) {
-            removed++
-            if (isInWatchedFolder(file.path)) {
-              this.docIndexService?.setRemoved(file.path)
-            }
-          } else {
-            missing++
+      for (let b = 0; b < totalBatches; b++) {
+        const batch = toDelete.slice(b * CHUNK, b * CHUNK + CHUNK)
+        notice.setMessage(
+          `Removing from "${folder.path}"${tail}\n` +
+            `Batch ${b + 1}/${totalBatches} — sending ${batch.length}…`,
+        )
+        const ok = await ragEngine.deleteDocumentsByIds(
+          batch.map((x) => x.docId),
+        )
+        if (ok) {
+          removed += batch.length
+          for (const x of batch) {
+            if (isInWatchedFolder(x.path))
+              this.docIndexService?.setRemoved(x.path)
           }
-        } catch (err) {
-          console.error(`Error removing ${file.name}:`, err)
-          missing++
         }
+        this.updateStatusUI('busy')
+        // Wait for this batch to finish before sending the next one.
+        await this.waitForPipelineIdle((status) => {
+          const cur = (status.cur_batch as number) || 0
+          const tot = (status.batchs as number) || batch.length
+          const pct = Math.round((cur / Math.max(tot, 1)) * 100)
+          notice.setMessage(
+            `Removing from "${folder.path}"${tail}\n` +
+              `Batch ${b + 1}/${totalBatches} · ${pct}%\n` +
+              `📝 ${(status.latest_message as string) || 'Processing…'}`,
+          )
+        })
       }
 
-      if (removed > 0) {
-        void this.refreshIngestedFolderPaths()
-      }
-
+      this.updateStatusUI('online')
       notice.setMessage(
-        `Removed ${removed} from "${folder.path}"` +
-          (missing > 0 ? ` (${missing} not in graph)` : ''),
+        `Removed ${removed} from "${folder.path}"${tail}.\nReopen the graph view to refresh.`,
       )
-      setTimeout(() => notice.hide(), 4000)
+      setTimeout(() => notice.hide(), 6000)
+
+      // Deletion finished — refresh menu state + file-explorer dots.
+      void this.refreshIngestedFolderPaths()
       this.decorateFileExplorer()
     } catch (error) {
       console.error('Batch remove error:', error)

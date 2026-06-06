@@ -183,12 +183,26 @@ export class RAGEngine {
 
   // --- 2b. INCREMENTAL SYNC HELPERS ---
 
-  async listAllDocumentPaths(): Promise<string[]> {
+  /**
+   * Paginate through ALL pages of `/documents/paginated` and return every
+   * document's id + file_path. `/documents/paginated` caps page_size at 200,
+   * so a vault with >200 docs spans multiple pages — resolving them all here
+   * means folder operations work no matter how large the vault is.
+   *
+   * `onPage` lets callers short-circuit the walk (e.g. findDocIdByFilePath
+   * stops as soon as it sees its target) without fetching the remaining pages.
+   * Returns whatever was collected before the abort / failure.
+   */
+  private async listAllDocuments(
+    onPage?: (docs: { id: string; file_path?: string | null }[]) => boolean,
+  ): Promise<{ id: string; file_path: string }[]> {
     const pageSize = 200
-    const paths: string[] = []
+    const out: { id: string; file_path: string }[] = []
     let page = 1
     try {
-      while (page <= 200) {
+      // Hard cap to avoid runaway loops if the server reports `has_next: true`
+      // forever for some reason.
+      while (page <= 1000) {
         const response = await requestUrl({
           url: `${this.settings.lightRagServerUrl}/documents/paginated`,
           method: 'POST',
@@ -206,70 +220,91 @@ export class RAGEngine {
           documents?: { id: string; file_path?: string | null }[]
           pagination?: { has_next?: boolean }
         }
-        for (const doc of data.documents ?? []) {
+        const docs = data.documents ?? []
+        for (const doc of docs) {
           if (typeof doc.file_path === 'string' && doc.file_path.length > 0) {
-            paths.push(doc.file_path)
+            out.push({ id: doc.id, file_path: doc.file_path })
           }
         }
+        // Let the caller stop early (e.g. it already found its target).
+        if (onPage && onPage(docs)) break
         if (!data.pagination?.has_next) break
         page++
       }
     } catch (e) {
-      console.error('listAllDocumentPaths failed:', e)
-      return []
+      console.error('listAllDocuments failed:', e)
     }
-    return paths
+    return out
+  }
+
+  /**
+   * Every `file_path` currently known to the server. Used by the folder
+   * context menu to decide "Ingest folder" vs "Remove folder from graph".
+   * Empty on failure — callers treat "I don't know" as "no data".
+   */
+  async listAllDocumentPaths(): Promise<string[]> {
+    return (await this.listAllDocuments()).map((d) => d.file_path)
+  }
+
+  /**
+   * Map of every vault file_path → its LightRAG doc_id. Lets bulk operations
+   * (folder removal) resolve all ids in a single pagination pass instead of
+   * one full lookup per file. Both the full vault-relative path and the bare
+   * filename are indexed so callers can match either.
+   */
+  async getDocIdMap(): Promise<Map<string, string>> {
+    const map = new Map<string, string>()
+    for (const d of await this.listAllDocuments()) {
+      map.set(d.file_path, d.id)
+      const base = d.file_path.replace(/\\/g, '/').split('/').pop()
+      // Don't let a bare-filename entry clobber an exact full-path entry.
+      if (base && !map.has(base)) map.set(base, d.id)
+    }
+    return map
   }
 
   // Finds a LightRAG doc_id matching the given file.
   // Tries the full vault-relative path first (v1.2+ ingest), then falls back to
   // bare filename (pre-v1.2 ingest used file.name instead of file.path).
+  // Walks every page, stopping as soon as the target is found.
   async findDocIdByFilePath(
     filePath: string,
     fileName: string,
   ): Promise<string | null> {
-    try {
-      const response = await requestUrl({
-        url: `${this.settings.lightRagServerUrl}/documents/paginated`,
-        method: 'POST',
-        headers: this.getLightRagHeaders(),
-        body: JSON.stringify({
-          page: 1,
-          page_size: 200,
-          sort_field: 'file_path',
-          sort_direction: 'asc',
-        }),
-        throw: false,
-      })
-      if (response.status >= 400) return null
-      const data = response.json as {
-        documents?: { id: string; file_path: string }[]
+    let found: string | null = null
+    await this.listAllDocuments((docs) => {
+      const hit =
+        docs.find((d) => d.file_path === filePath) ??
+        docs.find((d) => d.file_path === fileName)
+      if (hit) {
+        found = hit.id
+        return true // stop paginating
       }
-      const docs = data.documents ?? []
-      // Prefer exact full-path match, fall back to bare filename for older entries
-      return (
-        docs.find((d) => d.file_path === filePath)?.id ??
-        docs.find((d) => d.file_path === fileName)?.id ??
-        null
-      )
-    } catch {
-      return null
-    }
+      return false
+    })
+    return found
   }
 
-  async deleteDocumentByFilePath(
-    filePath: string,
-    fileName: string,
-  ): Promise<boolean> {
-    const docId = await this.findDocIdByFilePath(filePath, fileName)
-    if (!docId) return false
+  /** Delete a single document from the graph by its LightRAG doc_id. */
+  async deleteDocumentById(docId: string): Promise<boolean> {
+    return this.deleteDocumentsByIds([docId])
+  }
+
+  /**
+   * Delete many documents in one request. `/documents/delete_document` takes
+   * a `doc_ids` array, so bulk folder removal sends every id at once instead
+   * of one request per file. Returns true if the server accepted the batch
+   * (deletion then proceeds in the background).
+   */
+  async deleteDocumentsByIds(docIds: string[]): Promise<boolean> {
+    if (docIds.length === 0) return true
     try {
       const response = await requestUrl({
         url: `${this.settings.lightRagServerUrl}/documents/delete_document`,
         method: 'DELETE',
         headers: this.getLightRagHeaders(),
         body: JSON.stringify({
-          doc_ids: [docId],
+          doc_ids: docIds,
           delete_file: false,
           delete_llm_cache: true,
         }),
@@ -279,6 +314,15 @@ export class RAGEngine {
     } catch {
       return false
     }
+  }
+
+  async deleteDocumentByFilePath(
+    filePath: string,
+    fileName: string,
+  ): Promise<boolean> {
+    const docId = await this.findDocIdByFilePath(filePath, fileName)
+    if (!docId) return false
+    return this.deleteDocumentById(docId)
   }
 
   // Removes old entry and re-inserts the current file content.
