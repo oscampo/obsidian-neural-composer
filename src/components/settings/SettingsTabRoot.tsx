@@ -52,7 +52,6 @@ const TABS: TabDef[] = [
   { id: 'help', label: 'Help', Icon: CircleHelp },
 ]
 
-
 // ---------------------------------------------------------------------------
 // Brand logo tile — violet rounded square with brain-circuit glyph inside
 // ---------------------------------------------------------------------------

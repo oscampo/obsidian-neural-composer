@@ -109,16 +109,14 @@ export class RecursiveMarkdownTextSplitter {
   // piece so structure (e.g. heading markers) is preserved inside chunks.
   private splitBySeparator(text: string, separator: string): string[] {
     if (!separator) return text.length > 0 ? [text] : []
-    return text
-      .split(separator)
-      .reduce<string[]>((acc, part, i) => {
-        const piece = i === 0 ? part : separator + part
-        // Skip pieces that are just the separator with no following content.
-        if (i === 0 ? piece.length > 0 : piece.length > separator.length) {
-          acc.push(piece)
-        }
-        return acc
-      }, [])
+    return text.split(separator).reduce<string[]>((acc, part, i) => {
+      const piece = i === 0 ? part : separator + part
+      // Skip pieces that are just the separator with no following content.
+      if (i === 0 ? piece.length > 0 : piece.length > separator.length) {
+        acc.push(piece)
+      }
+      return acc
+    }, [])
   }
 
   // Merge splits into chunks up to chunkSize, retaining chunkOverlap between
@@ -133,7 +131,10 @@ export class RecursiveMarkdownTextSplitter {
       const splitLen = split.length
       const overhead = currentParts.length > 0 ? sepLen : 0
 
-      if (total + overhead + splitLen > this.chunkSize && currentParts.length > 0) {
+      if (
+        total + overhead + splitLen > this.chunkSize &&
+        currentParts.length > 0
+      ) {
         docs.push(currentParts.join(separator))
         // Trim from the front until within overlap budget.
         while (
@@ -141,7 +142,8 @@ export class RecursiveMarkdownTextSplitter {
           (total > this.chunkOverlap ||
             total + splitLen + sepLen > this.chunkSize)
         ) {
-          total -= currentParts[0].length + (currentParts.length > 1 ? sepLen : 0)
+          total -=
+            currentParts[0].length + (currentParts.length > 1 ? sepLen : 0)
           currentParts.shift()
         }
       }
