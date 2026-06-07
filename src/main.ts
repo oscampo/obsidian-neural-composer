@@ -34,6 +34,10 @@ import {
 } from './settings/schema/setting.types'
 import { parseNeuralComposerSettings } from './settings/schema/settings'
 import { NeuralComposerSettingTab } from './settings/SettingTab'
+import {
+  getExcludePatternForPath,
+  isExcludedFromGraphSync,
+} from './utils/glob-utils'
 import { getMentionableBlockData } from './utils/obsidian'
 import { VectorManager } from './database/modules/vector/VectorManager'
 
@@ -370,6 +374,18 @@ export default class NeuralComposerPlugin extends Plugin {
       }),
     )
 
+    // --- CONTEXT MENU: exclude / re-include from graph sync (files & folders) ---
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file) => {
+        this.addGraphExclusionMenuItem(menu, [file])
+      }),
+    )
+    this.registerEvent(
+      this.app.workspace.on('files-menu', (menu, files) => {
+        this.addGraphExclusionMenuItem(menu, files)
+      }),
+    )
+
     // --- SINGLE FILE INGEST COMMAND ---
     this.addCommand({
       id: 'ingest-current-file',
@@ -439,6 +455,7 @@ export default class NeuralComposerPlugin extends Plugin {
         if (!(file instanceof TFile)) return
         if (!isInSyncFolder(file.path)) return
         if (!SUPPORTED_EXTENSIONS.includes(file.extension.toLowerCase())) return
+        if (this.isPathExcludedFromGraph(file.path)) return
         // Guard here (before setTimeout) so startup create-events are dropped
         // before the 2 s timer is even scheduled. By the time the timer would
         // fire, onLayoutReady has already set docIndexReady = true, so the
@@ -513,7 +530,14 @@ export default class NeuralComposerPlugin extends Plugin {
           const ragEngine = await this.getRAGEngine()
 
           if (wasInFolder && nowInFolder) {
-            // Renamed or moved within the watched folder
+            // Renamed or moved within the watched folder.
+            // If the new path is now excluded, remove the old doc and stop.
+            if (this.isPathExcludedFromGraph(file.path)) {
+              const oldName = oldPath.split('/').pop() ?? oldPath
+              await ragEngine.deleteDocumentByFilePath(oldPath, oldName)
+              this.docIndexService?.removeEntry(oldPath)
+              return
+            }
             const notice = new Notice(
               `Graph sync: updating "${file.name}" in graph...`,
               0,
@@ -547,6 +571,7 @@ export default class NeuralComposerPlugin extends Plugin {
             setTimeout(() => notice.hide(), 6000)
           } else {
             // Moved INTO the watched folder
+            if (this.isPathExcludedFromGraph(file.path)) return
             const notice = new Notice(
               `Graph sync: sending "${file.name}"...`,
               0,
@@ -574,6 +599,7 @@ export default class NeuralComposerPlugin extends Plugin {
         if (!(file instanceof TFile)) return
         if (!isInSyncFolder(file.path)) return
         if (!SUPPORTED_EXTENSIONS.includes(file.extension.toLowerCase())) return
+        if (this.isPathExcludedFromGraph(file.path)) return
 
         // Debounce: wait 5 s of inactivity before re-indexing
         const existing = this.modifyDebounceMap.get(file.path)
@@ -853,8 +879,122 @@ export default class NeuralComposerPlugin extends Plugin {
     return files
   }
 
+  /**
+   * True if the given vault path is excluded from graph (LightRAG) ingestion,
+   * either by the user's exclude patterns or the "exclude hidden files" setting.
+   */
+  isPathExcludedFromGraph(path: string): boolean {
+    return isExcludedFromGraphSync(path, {
+      excludePatterns: this.settings.lightRagExcludePatterns,
+      excludeHiddenFiles: this.settings.lightRagExcludeHiddenFiles,
+    })
+  }
+
+  /**
+   * Adds an "Exclude from graph sync" (or "Re-include") item to the file
+   * explorer context menu for the given files/folders. Folders exclude all of
+   * their descendants.
+   */
+  private addGraphExclusionMenuItem(menu: Menu, files: TAbstractFile[]) {
+    if (files.length === 0) return
+
+    const patterns = files.map((file) =>
+      getExcludePatternForPath(file.path, file instanceof TFolder),
+    )
+    const current = this.settings.lightRagExcludePatterns
+    const allExcluded = patterns.every((pattern) => current.includes(pattern))
+
+    menu.addItem((item) => {
+      item
+        .setTitle(
+          allExcluded ? 'Re-include in graph sync' : 'Exclude from graph sync',
+        )
+        .setIcon(allExcluded ? 'eye' : 'eye-off')
+        .onClick(() => {
+          if (allExcluded) {
+            void this.removeGraphExcludePatterns(patterns)
+          } else {
+            void this.addGraphExclusionForFiles(files, patterns)
+          }
+        })
+    })
+  }
+
+  private async addGraphExclusionForFiles(
+    files: TAbstractFile[],
+    patterns: string[],
+  ) {
+    const merged = Array.from(
+      new Set([...this.settings.lightRagExcludePatterns, ...patterns]),
+    )
+    await this.setSettings({
+      ...this.settings,
+      lightRagExcludePatterns: merged,
+    })
+
+    // Remove any already-ingested docs for the excluded files from the graph
+    // so they disappear immediately.
+    const targetFiles: TFile[] = []
+    for (const file of files) {
+      if (file instanceof TFolder) {
+        targetFiles.push(...this.getAllSupportedFiles(file))
+      } else if (file instanceof TFile) {
+        targetFiles.push(file)
+      }
+    }
+
+    if (targetFiles.length === 0) {
+      new Notice('Excluded from graph sync')
+      return
+    }
+
+    const notice = new Notice('Removing excluded files from graph...', 0)
+    try {
+      const ragEngine = await this.getRAGEngine()
+      let removed = 0
+      for (const file of targetFiles) {
+        const ok = await ragEngine.deleteDocumentByFilePath(
+          file.path,
+          file.name,
+        )
+        if (ok) {
+          removed++
+          this.docIndexService?.setRemoved(file.path)
+        }
+      }
+      notice.setMessage(
+        removed > 0
+          ? `Excluded from graph sync (removed ${removed} file${
+              removed === 1 ? '' : 's'
+            } from graph)`
+          : 'Excluded from graph sync',
+      )
+    } catch (error) {
+      console.error('Error removing excluded files from graph:', error)
+      notice.setMessage('Excluded from graph sync (failed to update graph)')
+    } finally {
+      setTimeout(() => notice.hide(), 4000)
+    }
+  }
+
+  private async removeGraphExcludePatterns(patterns: string[]) {
+    const toRemove = new Set(patterns)
+    const remaining = this.settings.lightRagExcludePatterns.filter(
+      (pattern) => !toRemove.has(pattern),
+    )
+    await this.setSettings({
+      ...this.settings,
+      lightRagExcludePatterns: remaining,
+    })
+    new Notice(
+      'Re-included in graph sync. Edit the file to re-ingest it, or use "Ingest folder into graph".',
+    )
+  }
+
   async batchIngestFolder(folder: TFolder) {
-    const files = this.getAllSupportedFiles(folder)
+    const files = this.getAllSupportedFiles(folder).filter(
+      (file) => !this.isPathExcludedFromGraph(file.path),
+    )
     if (files.length === 0) {
       new Notice('Empty folder or no supported files.')
       return

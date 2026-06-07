@@ -316,6 +316,48 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
         new FolderSuggest(plugin.app, text.inputEl)
       })
 
+    new Setting(container)
+      .setName('Exclude hidden files and folders')
+      .setDesc(
+        'When enabled, files and folders whose name starts with a dot ' +
+          '(e.g. ".trash", ".obsidian") are never ingested into the graph.',
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(plugin.settings.lightRagExcludeHiddenFiles)
+          .onChange((value) => {
+            void plugin.setSettings({
+              ...plugin.settings,
+              lightRagExcludeHiddenFiles: value,
+            })
+          }),
+      )
+
+    new Setting(container)
+      .setName('Exclude patterns')
+      .setDesc(
+        'Glob patterns (one per line) for files inside the watched folder that ' +
+          'should never be ingested into the graph. Example: "Main/Templates/**". ' +
+          'You can also right-click a file or folder and choose "Exclude from graph sync".',
+      )
+      .addTextArea((textArea) => {
+        textArea
+          .setPlaceholder('Main/Templates/**\nMain/Inbox/scratch.md')
+          .setValue(plugin.settings.lightRagExcludePatterns.join('\n'))
+          .onChange((value) => {
+            const patterns = value
+              .split('\n')
+              .map((p) => p.trim())
+              .filter((p) => p.length > 0)
+            void plugin.setSettings({
+              ...plugin.settings,
+              lightRagExcludePatterns: patterns,
+            })
+          })
+        textArea.inputEl.rows = 4
+        textArea.inputEl.style.width = '100%'
+      })
+
     // --- ONTOLOGY SECTION ---
     container.createEl('h4', { text: 'Ontology (categories)' })
 

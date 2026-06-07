@@ -121,6 +121,13 @@ export const NeuralComposerSettingsSchema = z.object({
 
   // --- INCREMENTAL SYNC ---
   lightRagSyncFolder: z.string().catch(''),
+
+  // --- GRAPH SYNC EXCLUSIONS ---
+  // Glob patterns (minimatch) for files/folders inside the watched folder that
+  // should never be ingested into the graph. `excludeHiddenFiles` additionally
+  // skips any path with a dot-prefixed segment (e.g. .trash, .obsidian).
+  lightRagExcludePatterns: z.array(z.string()).catch([]),
+  lightRagExcludeHiddenFiles: z.boolean().catch(true),
   // ----------------------------------
 })
 
@@ -202,6 +209,10 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
   // DEFAULT NUEVO
   lightRagCustomEnv: '',
   lightRagSyncFolder: '',
+
+  // GRAPH SYNC EXCLUSIONS
+  lightRagExcludePatterns: [],
+  lightRagExcludeHiddenFiles: true,
 }
 
 export type SettingMigration = {

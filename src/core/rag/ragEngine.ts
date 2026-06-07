@@ -5,6 +5,7 @@ import { VectorManager } from '../../database/modules/vector/VectorManager'
 import { SelectEmbedding } from '../../database/schema'
 import { NeuralComposerSettings } from '../../settings/schema/setting.types'
 import { EmbeddingModelClient } from '../../types/embedding'
+import { isExcludedFromGraphSync } from '../../utils/glob-utils'
 
 import { getEmbeddingModelClient } from './embedding'
 
@@ -289,6 +290,21 @@ export class RAGEngine {
 
   // Inserts a file into the index without deleting first.
   async ingestFile(file: TFile): Promise<boolean> {
+    // Safety net: never ingest files the user has excluded from graph sync.
+    // Callers gate excluded files earlier (before showing "processing"), so this
+    // mainly protects any future call site.
+    if (
+      isExcludedFromGraphSync(file.path, {
+        excludePatterns: this.settings.lightRagExcludePatterns,
+        excludeHiddenFiles: this.settings.lightRagExcludeHiddenFiles,
+      })
+    ) {
+      console.log(
+        `[NeuralComposer] Skipping excluded file (graph sync): ${file.path}`,
+      )
+      return false
+    }
+
     const ext = file.extension.toLowerCase()
     const textExts = ['md', 'txt', 'csv', 'json', 'html', 'htm', 'xml']
     if (textExts.includes(ext)) {
