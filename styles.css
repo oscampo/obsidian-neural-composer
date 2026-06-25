@@ -2316,6 +2316,20 @@ button.nrlcmp-chat-input-model-select {
   opacity: 0.7;
 }
 
+/* Clickable source filename — opens the vault file in a new tab. */
+.nrlcmp-source-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+.nrlcmp-source-link:hover {
+  text-decoration: underline;
+  color: var(--text-accent-hover, var(--text-accent));
+}
+
 .nrlcmp-no-source {
   color: var(--text-faint);
   font-style: italic;
