@@ -234,7 +234,7 @@ export class NativeGraphView extends ItemView {
     container.addClass(is3D ? 'nrlcmp-mode-3d' : 'nrlcmp-mode-2d')
 
     // Load chunk→doc maps from local files (desktop only, best-effort for source citations)
-    await this.loadReferenceMaps()
+    this.loadReferenceMaps()
 
     // Reset navigation state on open
     this.currentRootLabel = ''
@@ -306,7 +306,8 @@ export class NativeGraphView extends ItemView {
   }
 
   // --- DATA LOGIC ---
-  async loadReferenceMaps() {
+  // Not async: all file access here is synchronous (readFileSync).
+  loadReferenceMaps() {
     // Reuse the plugin's desktop-only Node modules; null on mobile → skip.
     const nodeFs = this.plugin._nodeFs
     const nodePath = this.plugin._nodePath
@@ -471,12 +472,9 @@ export class NativeGraphView extends ItemView {
       )
       .filter(Boolean)
     if (paths.length === 0) return null
-    const names = new Set<string>()
-    for (const p of paths) {
-      const name = p.replace(/\\/g, '/').split('/').pop() || p
-      names.add(name)
-    }
-    return Array.from(names)
+    // Keep the full vault-relative path — the details panel shows the basename
+    // for readability, but the full path is needed to open the file on click.
+    return Array.from(new Set(paths.map((p) => p.replace(/\\/g, '/'))))
   }
 
   getFilenames(sourceIds: string): string[] {
@@ -504,9 +502,10 @@ export class NativeGraphView extends ItemView {
         (docData._rawKey as string) || // the raw JSON key (often is the file path)
         docData.id // doc ID as last-resort display name
       if (rawName) {
-        // Show only the basename so long paths stay readable
-        const name = rawName.replace(/\\/g, '/').split('/').pop() || rawName
-        fileNames.add(name)
+        // Keep the full path — the basename is shown at render time, but the
+        // full path (or a bare basename for older kv_store entries) is needed
+        // to resolve the file on click.
+        fileNames.add(rawName.replace(/\\/g, '/'))
       }
     })
     return Array.from(fileNames)
@@ -1073,10 +1072,35 @@ export class NativeGraphView extends ItemView {
     const ul = sourcesSection.createEl('ul', { cls: 'nrlcmp-sources-list' })
 
     if (files.length > 0) {
-      files.forEach((f: string) => {
+      files.forEach((fullPath: string) => {
+        const basename =
+          fullPath.replace(/\\/g, '/').split('/').pop() || fullPath
         const li = ul.createEl('li', { cls: 'nrlcmp-source-item' })
         li.createSpan({ text: '📄', cls: 'nrlcmp-source-icon' })
-        li.createSpan({ text: f })
+        const link = li.createEl('a', {
+          text: basename,
+          cls: 'nrlcmp-source-link',
+          href: '#',
+        })
+        // Full path on hover so users can tell apart sources that share a
+        // basename across different subfolders.
+        if (fullPath !== basename) setTooltip(link, fullPath)
+        link.onclick = (ev) => {
+          ev.preventDefault()
+          ev.stopPropagation()
+          // getFirstLinkpathDest resolves both full vault-relative paths and
+          // bare basenames (older kv_store entries) and returns null for files
+          // not in the vault — unlike openLinkText, which would create one.
+          const target = this.app.metadataCache.getFirstLinkpathDest(
+            fullPath,
+            '',
+          )
+          if (target) {
+            void this.app.workspace.getLeaf('tab').openFile(target)
+          } else {
+            new Notice(`Source file not found in vault: ${fullPath}`)
+          }
+        }
       })
     } else {
       ul.createEl('li', { text: 'No explicit source', cls: 'nrlcmp-no-source' })
