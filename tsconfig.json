@@ -17,7 +17,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "strictBindCallApply": true,
-	"types": ["node"]
+    "types": ["node", "jest"]
   },
   "include": [
     "src/**/*.ts",
