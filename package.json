@@ -75,7 +75,7 @@
     "3d-force-graph": "^1.79.0",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.13",
-    "drizzle-orm": "^0.39.0",
+    "drizzle-orm": "^0.45.2",
     "exponential-backoff": "^3.1.1",
     "fast-xml-parser": "^5.8.0",
     "fuzzysort": "^3.1.0",
