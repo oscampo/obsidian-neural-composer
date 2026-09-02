@@ -73,7 +73,8 @@ export class McpManager {
   }
 
   public cleanup() {
-    // Disconnect all clients
+    // Disconnect all clients. See updateServers() for why close() failures
+    // are swallowed rather than left to reject uncaught.
     void Promise.all(
       this.servers
         .filter(
@@ -84,7 +85,11 @@ export class McpManager {
             { status: McpServerStatus.Connected }
           > => s.status === McpServerStatus.Connected,
         )
-        .map((s) => s.client.close()),
+        .map((s) =>
+          s.client.close().catch((error: unknown) => {
+            console.error('Failed to close MCP client:', error)
+          }),
+        ),
     )
 
     if (this.unsubscribeFromSettings) {
@@ -185,9 +190,19 @@ export class McpManager {
           ),
       )
 
-    // Disconnect clients in the background
+    // Disconnect clients in the background. Swallow close() failures instead
+    // of letting them surface as uncaught rejections — e.g. StdioClientTransport's
+    // close() calls setTimeout(...).unref(), which doesn't exist on Electron
+    // renderer's setTimeout, so a stdio client's close() can reject even though
+    // the underlying process is still killed.
     if (clientsToDisconnect.length > 0) {
-      void Promise.all(clientsToDisconnect.map((client) => client.close()))
+      void Promise.all(
+        clientsToDisconnect.map((client) =>
+          client.close().catch((error: unknown) => {
+            console.error('Failed to close MCP client:', error)
+          }),
+        ),
+      )
     }
 
     this.servers = nextServers
