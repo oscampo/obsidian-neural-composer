@@ -15,6 +15,7 @@ import {
   ToolCallResponseStatus,
 } from '../../types/tool-call.types'
 import { deepEqual } from '../../utils/deep-equal'
+import { obsidianRequestUrlFetch } from '../../utils/fetch-utils'
 
 import { InvalidToolNameException, McpNotAvailableException } from './exception'
 import {
@@ -257,6 +258,10 @@ export class McpManager {
         await client.connect(
           new StreamableHTTPClientTransport(new URL(serverParams.url), {
             requestInit: { headers: serverParams.headers },
+            // Obsidian's Electron renderer applies CORS/CSP to the global
+            // fetch() the SDK would otherwise use. Route through
+            // requestUrl() instead, which bypasses both.
+            fetch: obsidianRequestUrlFetch,
           }),
         )
       } else {
