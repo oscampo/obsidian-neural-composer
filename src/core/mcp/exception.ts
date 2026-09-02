@@ -1,6 +1,8 @@
 export class McpNotAvailableException extends Error {
-  constructor() {
-    super('MCP is not available on mobile')
+  constructor(
+    message = 'Local (command-based) MCP servers are not available on mobile',
+  ) {
+    super(message)
     this.name = 'McpNotAvailableException'
   }
 }

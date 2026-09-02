@@ -11,11 +11,31 @@ export type McpToolCallResult = CallToolResult
 export type McpToolListResult = ListToolsResult
 export type McpClient = Client
 
-export const mcpServerParametersSchema = z.object({
-  command: z.string(),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-})
+// Local (stdio) servers are spawned as a child process via Node.js — desktop only.
+// `type` is optional here so existing configs (and configs copy-pasted from other
+// MCP clients, which never include a "type" field) keep validating unchanged.
+const mcpStdioServerParametersSchema = z
+  .object({
+    type: z.literal('stdio').optional(),
+    command: z.string(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+  })
+  .strict()
+
+// Remote servers reached over Streamable HTTP — just a fetch, works on any platform.
+const mcpHttpServerParametersSchema = z
+  .object({
+    type: z.literal('http'),
+    url: z.string().url(),
+    headers: z.record(z.string(), z.string()).optional(),
+  })
+  .strict()
+
+export const mcpServerParametersSchema = z.union([
+  mcpHttpServerParametersSchema,
+  mcpStdioServerParametersSchema,
+])
 export type McpServerParameters = z.infer<typeof mcpServerParametersSchema>
 
 export const mcpServerToolOptionsSchema = z.record(

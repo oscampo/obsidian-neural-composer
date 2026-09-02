@@ -101,9 +101,8 @@ function McpServerFormComponent({
       } catch {
         throw new Error('Parameters must be valid JSON')
       }
-      const validatedParameters: McpServerParameters = mcpServerParametersSchema
-        .strict()
-        .parse(parsedParameters)
+      const validatedParameters: McpServerParameters =
+        mcpServerParametersSchema.parse(parsedParameters)
 
       const newSettings = {
         ...plugin.settings,
@@ -151,7 +150,7 @@ function McpServerFormComponent({
         return
       }
       const parsedParameters: unknown = JSON.parse(parameters)
-      mcpServerParametersSchema.strict().parse(parsedParameters)
+      mcpServerParametersSchema.parse(parsedParameters)
       setValidationError(null)
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -190,10 +189,17 @@ function McpServerFormComponent({
 
       <ObsidianSetting
         name="Parameters"
-        desc={`JSON configuration that defines how to run the MCP server. Format must include:
+        desc={`JSON configuration that defines how to connect to the MCP server.
+
+Local server (desktop only), spawned as a command:
 - "command": The executable name (e.g., "npx", "node")
 - "args": (Optional) Array of command-line arguments
-- "env": (Optional) Key-value pairs of environment variables`}
+- "env": (Optional) Key-value pairs of environment variables
+
+Remote server (desktop and mobile), reached over HTTP:
+- "type": Must be "http"
+- "url": The server's Streamable HTTP endpoint
+- "headers": (Optional) Key-value pairs of HTTP headers, e.g. for auth`}
         className="nrlcmp-settings-textarea-header nrlcmp-settings-description-preserve-whitespace"
         required
       />

@@ -69,46 +69,39 @@ export function McpSection({ app, plugin }: McpSectionProps) {
         long outputs.
       </div>
 
-      {mcpManager?.disabled ? (
-        <div className="nrlcmp-settings-sub-header-container">
-          <div className="nrlcmp-settings-sub-header">
-            MCP is not supported on mobile devices
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="nrlcmp-settings-sub-header-container">
-            <div className="nrlcmp-settings-sub-header">MCP Servers</div>
-            <ObsidianButton
-              text="Add MCP Server"
-              onClick={() => new AddMcpServerModal(app, plugin).open()}
-            />
-          </div>
+      <div className="nrlcmp-settings-sub-header-container">
+        <div className="nrlcmp-settings-sub-header">MCP Servers</div>
+        <ObsidianButton
+          text="Add MCP Server"
+          onClick={() => new AddMcpServerModal(app, plugin).open()}
+        />
+      </div>
 
-          <div className="nrlcmp-mcp-servers-container">
-            <div className="nrlcmp-mcp-servers-header">
-              <div>Server</div>
-              <div>Status</div>
-              <div>Enabled</div>
-              <div>Actions</div>
-            </div>
-            {mcpServers.length > 0 ? (
-              mcpServers.map((server) => (
-                <McpServerComponent
-                  key={server.name}
-                  server={server}
-                  app={app}
-                  plugin={plugin}
-                />
-              ))
-            ) : (
-              <div className="nrlcmp-mcp-servers-empty">
-                No MCP servers found
-              </div>
-            )}
-          </div>
-        </>
-      )}
+      <div className="nrlcmp-settings-desc">
+        Remote (HTTP) servers work on desktop and mobile. Local (command-based)
+        servers require Obsidian desktop.
+      </div>
+
+      <div className="nrlcmp-mcp-servers-container">
+        <div className="nrlcmp-mcp-servers-header">
+          <div>Server</div>
+          <div>Status</div>
+          <div>Enabled</div>
+          <div>Actions</div>
+        </div>
+        {mcpServers.length > 0 ? (
+          mcpServers.map((server) => (
+            <McpServerComponent
+              key={server.name}
+              server={server}
+              app={app}
+              plugin={plugin}
+            />
+          ))
+        ) : (
+          <div className="nrlcmp-mcp-servers-empty">No MCP servers found</div>
+        )}
+      </div>
     </div>
   )
 }

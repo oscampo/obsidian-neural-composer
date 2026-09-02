@@ -26,8 +26,6 @@ import {
 export class McpManager {
   static readonly TOOL_NAME_DELIMITER = '__' // Delimiter for tool name construction (serverName__toolName)
 
-  public readonly disabled = !Platform.isDesktop // MCP should be disabled on mobile since it doesn't support node.js
-
   private settings: NeuralComposerSettings
   private unsubscribeFromSettings: () => void
   private defaultEnv: Record<string, string>
@@ -56,13 +54,14 @@ export class McpManager {
   }
 
   public async initialize() {
-    if (this.disabled) {
-      return
+    // shell-env spawns a subshell to read env vars — only needed for local
+    // (stdio) servers, and only available on desktop.
+    if (Platform.isDesktop) {
+      const { shellEnvSync } = await import('shell-env')
+      this.defaultEnv = shellEnvSync()
+    } else {
+      this.defaultEnv = {}
     }
-
-    // Get default environment variables
-    const { shellEnvSync } = await import('shell-env')
-    this.defaultEnv = shellEnvSync()
 
     // Create MCP servers
     const servers = await Promise.all(
@@ -199,10 +198,6 @@ export class McpManager {
   private async connectServer(
     serverConfig: McpServerConfig,
   ): Promise<McpServerState> {
-    if (this.disabled) {
-      throw new McpNotAvailableException()
-    }
-
     const { id: name, parameters: serverParams, enabled } = serverConfig
 
     if (!enabled) {
@@ -210,6 +205,19 @@ export class McpManager {
         name,
         config: serverConfig,
         status: McpServerStatus.Disconnected,
+      }
+    }
+
+    const isRemote = serverParams.type === 'http'
+
+    if (!isRemote && !Platform.isDesktop) {
+      return {
+        name,
+        config: serverConfig,
+        status: McpServerStatus.Error,
+        error: new McpNotAvailableException(
+          `Local (command-based) MCP server "${name}" requires Obsidian desktop. Use a remote HTTP server (type: "http") on mobile.`,
+        ),
       }
     }
 
@@ -225,20 +233,30 @@ export class McpManager {
     }
 
     const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
-    const { StdioClientTransport } =
-      await import('@modelcontextprotocol/sdk/client/stdio.js')
     const client = new Client({ name, version: '1.0.0' })
 
     try {
-      await client.connect(
-        new StdioClientTransport({
-          ...serverParams,
-          env: {
-            ...this.defaultEnv,
-            ...(serverParams.env ?? {}),
-          },
-        }),
-      )
+      if (isRemote) {
+        const { StreamableHTTPClientTransport } =
+          await import('@modelcontextprotocol/sdk/client/streamableHttp.js')
+        await client.connect(
+          new StreamableHTTPClientTransport(new URL(serverParams.url), {
+            requestInit: { headers: serverParams.headers },
+          }),
+        )
+      } else {
+        const { StdioClientTransport } =
+          await import('@modelcontextprotocol/sdk/client/stdio.js')
+        await client.connect(
+          new StdioClientTransport({
+            ...serverParams,
+            env: {
+              ...this.defaultEnv,
+              ...(serverParams.env ?? {}),
+            },
+          }),
+        )
+      }
     } catch (error) {
       return {
         name,
@@ -273,10 +291,6 @@ export class McpManager {
   }
 
   public async listAvailableTools(): Promise<McpTool[]> {
-    if (this.disabled) {
-      return []
-    }
-
     if (this.availableToolsCache) {
       return this.availableToolsCache
     }
@@ -385,10 +399,6 @@ export class McpManager {
       }
     >
   > {
-    if (this.disabled) {
-      throw new McpNotAvailableException()
-    }
-
     const toolAbortController = new AbortController()
     if (id !== undefined) {
       const existingAbortController = this.activeToolCalls.get(id)
@@ -473,9 +483,6 @@ export class McpManager {
   }
 
   public abortToolCall(id: string): boolean {
-    if (this.disabled) {
-      return false
-    }
     const toolAbortController = this.activeToolCalls.get(id)
     if (toolAbortController) {
       toolAbortController.abort()
