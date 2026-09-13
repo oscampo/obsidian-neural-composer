@@ -226,9 +226,9 @@ function CommandBar({ onModelsClick }: { onModelsClick: () => void }) {
       style={{
         flexShrink: 0,
         background: 'var(--background-secondary)',
+        maxHeight: '50%',
         borderBottom: '1px solid var(--background-modifier-border)',
-        overflowX: 'auto',
-        overflowY: 'hidden',
+        overflow: 'auto',
       }}
     >
       {/* Top row: Models toggle + Support */}
@@ -459,26 +459,14 @@ type SettingsTabRootProps = {
 }
 
 export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
-  const rootRef = useRef<HTMLDivElement>(null)
-
   const [activeTab, setActiveTab] = useState<TabId>('models')
 
   const switchTab = useCallback((tab: TabId) => {
     setActiveTab(tab)
   }, [])
 
-  // Strip Obsidian's default containerEl padding so the layout fills the pane
-  useEffect(() => {
-    const host = rootRef.current?.closest<HTMLElement>('.vertical-tab-content')
-    if (host) {
-      host.classList.add('nc-settings-host')
-      return () => host.classList.remove('nc-settings-host')
-    }
-  }, [])
-
   return (
     <div
-      ref={rootRef}
       style={{
         position: 'absolute',
         top: 0,
@@ -486,7 +474,9 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
         right: 0,
         bottom: 0,
         display: 'flex',
-        minHeight: 520,
+        minWidth: 0,
+        minHeight: 0,
+        overflow: 'hidden',
         background: 'var(--background-primary)',
         fontFamily: 'var(--font-interface)',
       }}
@@ -496,19 +486,22 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
         style={{
           width: 56,
           flexShrink: 0,
+          minHeight: 0,
+          overflowY: 'auto',
           background: 'var(--background-secondary-alt)',
           borderRight: '1px solid var(--background-modifier-border)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          // On mobile, Obsidian's modal back button (←) overlays the top of the
-          // settings content area. Extra top padding pushes the nav items below it.
-          padding: Platform.isDesktop ? '12px 0' : '56px 0 12px',
+          // Native header height includes the mobile safe-area inset.
+          padding: Platform.isDesktop
+            ? '12px 0'
+            : 'calc(var(--modal-header-height, 44px) + 12px) 0 12px',
           gap: 2,
         }}
       >
         {/* Brand logo tile */}
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 12, flexShrink: 0 }}>
           <BrainLogoTile size={36} />
         </div>
 
@@ -520,9 +513,12 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
               key={id}
               onClick={() => switchTab(id)}
               title={label}
+              aria-label={label}
+              aria-pressed={sel}
               style={{
                 width: 40,
                 height: 40,
+                flexShrink: 0,
                 borderRadius: 8,
                 border: 'none',
                 // Active → filled accent square + white icon (same as BrainLogoTile)
@@ -554,15 +550,16 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
+          minHeight: 0,
           overflow: 'hidden',
-          // Match the nav rail offset so CommandBar clears the Obsidian modal
-          // back button that overlays the top of the content area on mobile.
-          paddingTop: Platform.isDesktop ? 0 : 56,
+          paddingTop: Platform.isDesktop
+            ? 0
+            : 'var(--modal-header-height, 56px)',
         }}
       >
         <CommandBar onModelsClick={() => switchTab('models')} />
 
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           <TabContent activeTab={activeTab} app={app} plugin={plugin} />
         </div>
       </div>

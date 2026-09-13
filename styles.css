@@ -2819,30 +2819,29 @@ button.nrlcmp-chat-input-model-select {
 
 /* ===========================================================================
    V3 Settings Dashboard  (nc-* namespace)
-   Layout-critical properties live as inline styles on the React components
-   so they always apply regardless of Obsidian theme CSS specificity.
-   Only interactive / pseudo-class styles live here.
+   Component layout is inline; scoped host rules release Obsidian's
+   default pane and row constraints.
    =========================================================================== */
 
-/* Strip Obsidian's default containerEl padding so the layout fills the pane.
-   position:relative is required so nc-root (position:absolute) is anchored here.
-   Using .vertical-tab-content.nc-settings-host for higher specificity — avoids !important. */
+/* Only the mounted dashboard owns this host class; unmount restores the pane. */
 .vertical-tab-content.nc-settings-host {
+  flex: 1;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
   padding: 0;
   overflow: hidden;
   position: relative;
   height: 100%;
 }
 
-/* Declarative-settings entry point (getSettingDefinitions(), Obsidian
-   1.13+): the React tree mounts inside a single Setting row's settingEl
-   instead of containerEl directly (see src/settings/SettingTab.tsx). The
-   nc-root absolute overlay still anchors to .vertical-tab-content above
-   (that lookup uses .closest(), unaffected by the extra nesting), this
-   reset just strips the row's own default chrome (border/padding/name
-   column) so nothing of Obsidian's normal row styling peeks out from
-   behind the full-bleed overlay. */
+/* A declarative Setting row must not become the absolute root's containing
+   block. Both APIs anchor the dashboard to the full settings pane above. */
 .setting-item.nc-full-settings-row {
+  position: static;
+  margin: 0;
   padding: 0;
   border: none;
   display: block;
@@ -2875,8 +2874,9 @@ button.nrlcmp-chat-input-model-select {
 
 /* Tab content padding — extra left breathing room between rail and text */
 .nc-tab-content {
-  padding: 20px 28px 32px 40px;
-  max-width: 780px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 20px clamp(12px, 4%, 28px) 32px clamp(12px, 6%, 40px);
 }
 
 /* ── LightRAG server version badge ──────────────────────────────────────
