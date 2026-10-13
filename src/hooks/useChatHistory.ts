@@ -14,7 +14,6 @@ import {
   deserializeMentionable,
   serializeMentionable,
 } from '../utils/chat/mentionable'
-import { deepEqual } from '../utils/deep-equal'
 
 import { useChatManager } from './useJsonManagers'
 
@@ -86,31 +85,14 @@ export function useChatHistory(): UseChatHistory {
       debounce(
         async (id: string, messages: ChatMessage[]): Promise<void> => {
           const serializedMessages = messages.map(serializeChatMessage)
-          const existingConversation = await chatManager.findById(id)
+          const firstUserMessage = messages.find(
+            (v): v is ChatUserMessage => v.role === 'user',
+          )
+          const title = firstUserMessage?.content
+            ? editorStateToPlainText(firstUserMessage.content).substring(0, 50)
+            : 'New chat'
 
-          if (existingConversation) {
-            if (deepEqual(existingConversation.messages, serializedMessages)) {
-              return
-            }
-            await chatManager.updateChat(existingConversation.id, {
-              messages: serializedMessages,
-            })
-          } else {
-            const firstUserMessage = messages.find(
-              (v): v is ChatUserMessage => v.role === 'user',
-            )
-
-            await chatManager.createChat({
-              id,
-              title: firstUserMessage?.content
-                ? editorStateToPlainText(firstUserMessage.content).substring(
-                    0,
-                    50,
-                  )
-                : 'New chat',
-              messages: serializedMessages,
-            })
-          }
+          await chatManager.saveChat(id, serializedMessages, title)
 
           await fetchChatList()
         },
