@@ -48,12 +48,12 @@ jobs:
           git add manifest.json package.json versions.json
           git diff --staged --quiet || git commit -m "chore: version bump ${{ env.TAG }}"
           git push origin main
-          
+
       - name: Move release tag to the version-bump commit
         run: |
           git tag -f "$TAG"
           git push origin "$TAG" --force
-          
+
       - name: Build plugin
         run: |
           npm ci
