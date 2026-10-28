@@ -44,7 +44,7 @@
     "typescript-eslint": "^8.53.1"
   },
   "overrides": {
-    "hono": ">=4.12.18",
+    "hono": ">=4.13.11",
     "fast-uri": ">=4.2.3",
     "ip-address": ">=10.2.0",
     "express-rate-limit": ">=8.5.1",
