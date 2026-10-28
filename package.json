@@ -45,7 +45,7 @@
   },
   "overrides": {
     "hono": ">=4.12.18",
-    "fast-uri": ">=3.1.2",
+    "fast-uri": ">=4.2.3",
     "ip-address": ">=10.2.0",
     "express-rate-limit": ">=8.5.1",
     "path-to-regexp": ">=8.4.0",
