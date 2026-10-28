@@ -27,7 +27,7 @@ const mcpStdioServerParametersSchema = z
 const mcpHttpServerParametersSchema = z
   .object({
     type: z.literal('http'),
-    url: z.string().url(),
+    url: z.url(),
     headers: z.record(z.string(), z.string()).optional(),
   })
   .strict()

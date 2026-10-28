@@ -64,14 +64,10 @@ export const llmProviderSchema = z.discriminatedUnion('type', [
     ...baseLlmProviderSchema.shape,
     additionalSettings: z.object({
       deployment: z
-        .string({
-          required_error: 'deployment is required',
-        })
+        .string({ error: 'deployment is required' })
         .min(1, 'deployment is required'),
       apiVersion: z
-        .string({
-          required_error: 'apiVersion is required',
-        })
+        .string({ error: 'apiVersion is required' })
         .min(1, 'apiVersion is required'),
     }),
   }),
@@ -79,9 +75,7 @@ export const llmProviderSchema = z.discriminatedUnion('type', [
     type: z.literal('openai-compatible'),
     ...baseLlmProviderSchema.shape,
     baseUrl: z
-      .string({
-        required_error: 'base URL is required',
-      })
+      .string({ error: 'base URL is required' })
       .min(1, 'base URL is required'),
     additionalSettings: z
       .object({
