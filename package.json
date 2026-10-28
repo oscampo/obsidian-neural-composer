@@ -1,6 +1,6 @@
 {
   "name": "obsidian-neural-composer",
-  "version": "1.4.12",
+  "version": "1.4.13",
   "description": "This is a sample plugin for Obsidian (https://obsidian.md)",
   "main": "main.js",
   "scripts": {
