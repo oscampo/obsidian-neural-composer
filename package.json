@@ -58,6 +58,7 @@
     "handlebars": ">=4.7.9",
     "brace-expansion": ">=2.0.2",
     "yaml": ">=2.9.0",
+    "minimatch@^7 || ^8 || ^9 || ^10": "^11.0.1",
     "openai": {
       "zod": "$zod"
     }
@@ -92,7 +93,7 @@
     "js-tiktoken": "^1.0.15",
     "lexical": "^0.17.1",
     "lucide-react": "^0.447.0",
-    "minimatch": "^10.2.5",
+    "minimatch": "^11.0.1",
     "openai": "^4.91.1",
     "parse5": "^7.1.2",
     "path-browserify": "^1.0.1",
