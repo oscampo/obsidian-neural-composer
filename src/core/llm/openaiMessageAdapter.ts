@@ -154,7 +154,7 @@ export class OpenAIMessageAdapter {
           ...(this.forwardReasoning && message.reasoning
             ? { reasoning_content: message.reasoning }
             : {}),
-        } as ChatCompletionMessageParam
+        }
       }
       case 'system': {
         if (Array.isArray(message.content)) {
