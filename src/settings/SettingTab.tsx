@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian'
-import { Root, createRoot } from 'react-dom/client'
+import { createRoot } from 'react-dom/client'
 
 import { SettingsTabRoot } from '../components/settings/SettingsTabRoot'
 import { SettingsProvider } from '../contexts/settings-context'
@@ -23,15 +23,18 @@ type RenderSettingDefinition = {
 
 export class NeuralComposerSettingTab extends PluginSettingTab {
   plugin: NeuralComposerPlugin
-  private root: Root | null = null
+  private unmount: (() => void) | null = null
 
   constructor(app: App, plugin: NeuralComposerPlugin) {
     super(app, plugin)
     this.plugin = plugin
   }
 
-  private mount(containerEl: HTMLElement): Root {
+  private mount(containerEl: HTMLElement): () => void {
+    this.hide()
     containerEl.empty()
+    const host = containerEl.closest<HTMLElement>('.vertical-tab-content')
+    host?.addClass('nc-settings-host')
     const root = createRoot(containerEl)
     root.render(
       <SettingsProvider
@@ -44,45 +47,38 @@ export class NeuralComposerSettingTab extends PluginSettingTab {
         <SettingsTabRoot app={this.app} plugin={this.plugin} />
       </SettingsProvider>,
     )
-    return root
+    const unmount = () => {
+      if (this.unmount !== unmount) return
+      root.unmount()
+      host?.removeClass('nc-settings-host')
+      containerEl.removeClass('nc-full-settings-row')
+      this.unmount = null
+    }
+    this.unmount = unmount
+    return unmount
   }
 
   // Pre-1.13 fallback (and still the code path this.mount() shares with
   // getSettingDefinitions() below).
   display(): void {
-    this.root = this.mount(this.containerEl)
+    this.mount(this.containerEl)
   }
 
   hide(): void {
-    if (this.root) {
-      this.root.unmount()
-      this.root = null
-    }
+    this.unmount?.()
   }
 
-  // Declarative API entry point (Obsidian 1.13+). A single row whose render
-  // callback mounts the exact same React tree as display(), inside that
-  // row's own settingEl instead of containerEl -- everything else about the
-  // custom UI (tabs, absolute positioning meant to fill the whole settings
-  // pane) is unchanged. NOT verified live against a real Obsidian instance
-  // (no Electron/Obsidian available in this environment) -- please confirm
-  // the full-bleed layout still renders correctly inside the row before
-  // merging; if `position: absolute` escapes oddly because some ancestor
-  // `.setting-item*` element turns out to have its own `position` set,
-  // that's the first thing to check.
+  // Obsidian 1.13+ mounts the dashboard inside a Setting row; the scoped
+  // row styles keep the same full-pane containing block as display().
   getSettingDefinitions(): RenderSettingDefinition[] {
     return [
       {
         name: 'Neural Composer',
         desc: 'Providers, models, chat, graph & vault, MCP tools, advanced settings, help.',
         render: (setting: Setting) => {
-          setting.settingEl.empty()
+          const unmount = this.mount(setting.settingEl)
           setting.settingEl.addClass('nc-full-settings-row')
-          this.root = this.mount(setting.settingEl)
-          return () => {
-            this.root?.unmount()
-            this.root = null
-          }
+          return unmount
         },
       },
     ]

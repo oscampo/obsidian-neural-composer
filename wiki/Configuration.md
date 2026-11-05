@@ -2,6 +2,8 @@
 
 The settings panel (**Settings → Neural Composer**) has a sidebar with seven tabs. This page explains every option in each tab.
 
+The dashboard fills the available settings pane, including the separate settings window. Resize it freely: the navigation rail, model menu, and settings content scroll independently in small windows; wide model tables can also scroll horizontally. On mobile, controls stay below Obsidian's header and safe-area inset.
+
 [screenshot: full settings panel — sidebar showing the 7 tabs: Providers, Models, Chat, Graph & Vault, Tools (MCP), Advanced, Help]
 
 ---

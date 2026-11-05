@@ -4,24 +4,11 @@ import { PromptLevel } from './prompt-level.types'
 
 const baseChatModelSchema = z.object({
   providerId: z
-    .string({
-      required_error: 'provider ID is required',
-    })
+    .string({ error: 'provider ID is required' })
     .min(1, 'provider ID is required'),
-  id: z
-    .string({
-      required_error: 'id is required',
-    })
-    .min(1, 'id is required'),
-  model: z
-    .string({
-      required_error: 'model is required',
-    })
-    .min(1, 'model is required'),
-  promptLevel: z
-    .nativeEnum(PromptLevel)
-    .default(PromptLevel.Default)
-    .optional(),
+  id: z.string({ error: 'id is required' }).min(1, 'id is required'),
+  model: z.string({ error: 'model is required' }).min(1, 'model is required'),
+  promptLevel: z.enum(PromptLevel).default(PromptLevel.Default).optional(),
   enable: z.boolean().default(true).optional(),
 })
 

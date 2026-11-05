@@ -158,7 +158,7 @@ function McpServerFormComponent({
         setValidationError('Invalid JSON format')
       } else if (error instanceof z.ZodError) {
         // Zod error
-        const formattedErrors = error.errors
+        const formattedErrors = error.issues
           .map((err) => {
             const path = err.path.length > 0 ? `${err.path.join('.')}: ` : ''
             return `${path}${err.message}`
