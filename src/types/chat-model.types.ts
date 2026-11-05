@@ -94,6 +94,13 @@ export const chatModelSchema = z.discriminatedUnion('providerType', [
   z.object({
     providerType: z.literal('openai-compatible'),
     ...baseChatModelSchema.shape,
+    reasoning: z
+      .object({
+        enabled: z.boolean(),
+        // Free text: each provider accepts different levels (e.g. low..max)
+        reasoning_effort: z.string().optional(),
+      })
+      .optional(),
   }),
 ])
 

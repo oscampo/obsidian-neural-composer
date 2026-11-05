@@ -199,6 +199,7 @@ ${message.annotations
           ...(citationContent ? [citationContent] : []),
         ].join('\n'),
         tool_calls: message.toolCallRequests,
+        reasoning: message.reasoning,
       },
     ]
   }

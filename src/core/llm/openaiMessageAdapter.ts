@@ -20,7 +20,18 @@ import {
   LLMResponseStreaming,
 } from '../../types/llm/response'
 
+export type OpenAIMessageAdapterOptions = {
+  /** Send assistant `reasoning` back to the API as `reasoning_content`. */
+  forwardReasoning?: boolean
+}
+
 export class OpenAIMessageAdapter {
+  protected readonly forwardReasoning: boolean
+
+  constructor(options: OpenAIMessageAdapterOptions = {}) {
+    this.forwardReasoning = options.forwardReasoning ?? false
+  }
+
   async generateResponse(
     client: OpenAI,
     request: LLMRequestNonStreaming,
@@ -140,7 +151,10 @@ export class OpenAIMessageAdapter {
             },
             type: 'function',
           })),
-        }
+          ...(this.forwardReasoning && message.reasoning
+            ? { reasoning_content: message.reasoning }
+            : {}),
+        } as ChatCompletionMessageParam
       }
       case 'system': {
         if (Array.isArray(message.content)) {
@@ -167,6 +181,8 @@ export class OpenAIMessageAdapter {
         finish_reason: choice.finish_reason,
         message: {
           content: choice.message.content,
+          reasoning: (choice.message as { reasoning_content?: string | null })
+            .reasoning_content,
           role: choice.message.role,
           tool_calls: choice.message.tool_calls,
         },
@@ -188,6 +204,9 @@ export class OpenAIMessageAdapter {
         finish_reason: choice.finish_reason ?? null,
         delta: {
           content: choice.delta.content ?? null,
+          reasoning:
+            (choice.delta as { reasoning_content?: string | null })
+              .reasoning_content ?? undefined,
           role: choice.delta.role,
           tool_calls: choice.delta.tool_calls,
         },

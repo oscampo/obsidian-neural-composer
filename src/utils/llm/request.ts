@@ -68,7 +68,12 @@ export function formatMessages(messages: RequestMessage[]): RequestMessage[] {
   for (const currentMessage of nonSystemMessages) {
     const prevMessage = formattedMessages[formattedMessages.length - 1]
 
-    if (prevMessage && prevMessage.role === currentMessage.role) {
+    // Tool messages must stay separate: each one answers a distinct tool_call_id
+    if (
+      prevMessage &&
+      prevMessage.role === currentMessage.role &&
+      currentMessage.role !== 'tool'
+    ) {
       prevMessage.content = concatenateMessageContent(
         prevMessage.content,
         currentMessage.content,

@@ -136,6 +136,96 @@ const MODEL_SETTINGS_REGISTRY: ModelSettingsRegistry[] = [
   },
 
   /**
+   * OpenAI-compatible model settings (reasoning_effort as free text, since
+   * each provider accepts different levels, e.g. low, medium, high, xhigh, max)
+   */
+  {
+    check: (model) => model.providerType === 'openai-compatible',
+
+    SettingsComponent: (props: SettingsComponentProps) => {
+      const { model, plugin, onClose } = props
+      const typedModel = model as ChatModel & {
+        providerType: 'openai-compatible'
+      }
+      const [reasoningEnabled, setReasoningEnabled] = useState<boolean>(
+        typedModel.reasoning?.enabled ?? false,
+      )
+      const [reasoningEffort, setReasoningEffort] = useState<string>(
+        typedModel.reasoning?.reasoning_effort ?? 'medium',
+      )
+
+      const handleSubmit = async () => {
+        const effort = reasoningEffort.trim()
+        if (reasoningEnabled && !effort) {
+          new Notice('Reasoning effort cannot be empty')
+          return
+        }
+
+        const updatedModel = {
+          ...typedModel,
+          reasoning: {
+            enabled: reasoningEnabled,
+            reasoning_effort: effort || undefined,
+          },
+        }
+
+        const validationResult = chatModelSchema.safeParse(updatedModel)
+        if (!validationResult.success) {
+          new Notice(
+            validationResult.error.issues.map((v) => v.message).join('\n'),
+          )
+          return
+        }
+
+        await plugin.setSettings({
+          ...plugin.settings,
+          chatModels: plugin.settings.chatModels.map((m) =>
+            m.id === model.id ? updatedModel : m,
+          ),
+        })
+        onClose()
+      }
+
+      return (
+        <>
+          <ObsidianSetting
+            name="Send reasoning effort"
+            desc="Send the reasoning_effort parameter with each request. When off, the provider's default is used."
+          >
+            <ObsidianToggle
+              value={reasoningEnabled}
+              onChange={(value: boolean) => setReasoningEnabled(value)}
+            />
+          </ObsidianSetting>
+          {reasoningEnabled && (
+            <ObsidianSetting
+              name="Reasoning effort" // Sentence case
+              desc='Level accepted by the provider, for example "low", "medium", "high", "xhigh" or "max".'
+              className="nrlcmp-setting-item--nested"
+              required
+            >
+              <ObsidianTextInput
+                value={reasoningEffort}
+                placeholder="medium"
+                onChange={(value: string) => setReasoningEffort(value)}
+              />
+            </ObsidianSetting>
+          )}
+
+          <ObsidianSetting>
+            <ObsidianButton
+              text="Save"
+              onClick={() => void handleSubmit()}
+              cta
+            />
+            <ObsidianButton text="Cancel" onClick={onClose} />
+          </ObsidianSetting>
+        </>
+      )
+    },
+  },
+
+  /**
    * Claude model settings
    *
    * For extended thinking, see:

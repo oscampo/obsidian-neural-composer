@@ -145,6 +145,30 @@ export const PROVIDER_TYPES_INFO = {
         description:
           'Enable this if you encounter CORS errors related to Stainless headers (x-stainless-os, etc.)',
       },
+      {
+        label: 'Use Obsidian network (bypass CORS)',
+        key: 'useObsidianRequest',
+        type: 'toggle',
+        required: false,
+        description:
+          'Enable this if the endpoint sends no CORS headers (chat shows "Connection error" but curl works). Responses arrive whole instead of streaming, and requests cannot be cancelled.',
+      },
+      {
+        label: 'Send reasoning back',
+        key: 'sendReasoning',
+        type: 'toggle',
+        required: false,
+        description:
+          "Send the model's earlier reasoning back as reasoning_content in assistant messages. Needed by some reasoning models to keep context across tool calls.",
+      },
+      {
+        label: 'Fill missing reasoning_content',
+        key: 'fillMissingReasoning',
+        type: 'toggle',
+        required: false,
+        description:
+          'For models that reject earlier assistant messages without reasoning_content. Lets you switch to them mid-chat: messages without reasoning get a "." placeholder. Also turns on "Send reasoning back".',
+      },
     ],
   },
 } as const satisfies Record<

@@ -69,6 +69,9 @@ type RequestAssistantMessage = {
   role: 'assistant'
   content: string
   tool_calls?: ToolCallRequest[]
+  // Sent back as `reasoning_content` only by providers that opt in
+  // (OpenAI-compatible with "Send reasoning back" / "Fill missing reasoning")
+  reasoning?: string
 }
 type RequestToolMessage = {
   role: 'tool'
